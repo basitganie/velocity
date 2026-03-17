@@ -1,0 +1,69 @@
+anaw sdl_native;
+
+kar SDL_INIT_VIDEO() -> adad { chu 32; }
+kar SDL_WINDOW_SHOWN() -> adad { chu 4; }
+kar SDL_RENDERER_ACCELERATED() -> adad { chu 2; }
+kar SDL_RENDERER_PRESENTVSYNC() -> adad { chu 4; }
+kar SDL_QUIT_EVENT() -> adad { chu 256; }
+kar SDL_KEYDOWN_EVENT() -> adad { chu 768; }
+kar SDL_KEYUP_EVENT() -> adad { chu 769; }
+kar SDL_SCANCODE_ESCAPE() -> adad { chu 41; }
+
+kar init(flags: adad) -> adad {
+    chu sdl_native.init(flags);
+}
+
+kar quit() -> adad {
+    sdl_native.quit();
+    chu 0;
+}
+
+kar create_window(title: lafz, x: adad, y: adad, w: adad, h: adad, flags: adad) -> adad {
+    chu sdl_native.create_window(title, x, y, w, h, flags);
+}
+
+kar destroy_window(window: adad) -> adad {
+    sdl_native.destroy_window(window);
+    chu 0;
+}
+
+kar create_renderer(window: adad, index: adad, flags: adad) -> adad {
+    chu sdl_native.create_renderer(window, index, flags);
+}
+
+kar destroy_renderer(renderer: adad) -> adad {
+    sdl_native.destroy_renderer(renderer);
+    chu 0;
+}
+
+kar set_draw_color(renderer: adad, r: adad, g: adad, b: adad, a: adad) -> adad {
+    sdl_native.set_render_draw_color(renderer, r, g, b, a);
+    chu 0;
+}
+
+kar render_clear(renderer: adad) -> adad {
+    sdl_native.render_clear(renderer);
+    chu 0;
+}
+
+kar render_present(renderer: adad) -> adad {
+    sdl_native.render_present(renderer);
+    chu 0;
+}
+
+kar delay(ms: adad) -> adad {
+    sdl_native.delay(ms);
+    chu 0;
+}
+
+kar poll_event() -> adad {
+    chu sdl_native.poll_event();
+}
+
+kar event_type() -> adad {
+    chu sdl_native.event_type();
+}
+
+kar event_key() -> adad {
+    chu sdl_native.event_key_sym();
+}

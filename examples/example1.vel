@@ -1,0 +1,28 @@
+anaw io;
+anaw math;
+anaw lafz;
+
+kar main() -> adad {
+    ath mut num_set: bool = poz;
+    yeli num_set{
+        io.chhaap("Enter a number: ");
+        ath num = io.input();
+        io.chhaap("Confirm (Yes/No): ");
+        ath prompt = io.stdin();
+        agar lafz.eq(prompt, "yes"){
+            num_set = apuz;
+            phutraw;
+        }
+        agar lafz.eq(prompt, "no") {
+            io.chhaap("Re-taking...\n");
+            pakh;
+        }
+        nate {
+            io.chhaap("No valid response!\n");
+            pakh;
+        }
+    }
+    ath sqrt = math.mul_chohrus(num);
+    io.chhaap("The sqrt is %f Done\n", sqrt);
+    chu 0;
+}

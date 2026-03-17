@@ -1,0 +1,140 @@
+# Velocity Standard Library - Math Module
+# All functions tested and verified
+
+# mul_chohrus: Sqrt
+kar mul_chohrus(n :ashari) -> ashari {
+    ath mut x = n / 2;
+    bar i in i..=20 {
+        x = ((x*x) + n) / (2*x);
+    }
+    chu x;
+
+}
+
+# mutlaq: absolute value
+kar mutlaq(x: adad) -> adad {
+    agar x < 0 {
+        chu 0 - x;
+    }
+    chu x;
+}
+
+# azeem: maximum
+kar azeem(a: adad, b: adad) -> adad {
+    agar a > b {
+        chu a;
+    }
+    chu b;
+}
+
+# asgar: minimum
+kar asgar(a: adad, b: adad) -> adad {
+    agar a < b {
+        chu a;
+    }
+    chu b;
+}
+
+# shakti: power (base^exp)
+kar shakti(base: adad, exp: adad) -> adad {
+    agar exp == 0 {
+        chu 1;
+    }
+    ath mut result = 1;
+    ath mut i = 0;
+    yeli i < exp {
+        result = result * base;
+        i = i + 1;
+    }
+    chu result;
+}
+
+# jar: integer square root
+kar jar(n: adad) -> adad {
+    agar n < 2 {
+        chu n;
+    }
+    ath mut x = n;
+    ath mut y = 1;
+    yeli x > y {
+        x = (x + y) / 2;
+        y = n / x;
+    }
+    chu x;
+}
+
+# zarb_tartib: factorial
+kar zarb_tartib(n: adad) -> adad {
+    agar n <= 1 {
+        chu 1;
+    }
+    chu n * zarb_tartib(n - 1);
+}
+
+# mushtarak_qasim: GCD
+kar mushtarak_qasim(a: adad, b: adad) -> adad {
+    yeli b != 0 {
+        ath temp = b;
+        b = a % b;
+        a = temp;
+    }
+    chu a;
+}
+
+# mushtarak_mutaaddid: LCM
+kar mushtarak_mutaaddid(a: adad, b: adad) -> adad {
+    chu (a * b) / mushtarak_qasim(a, b);
+}
+
+# awwal_chu: is prime?
+kar awwal_chu(n: adad) -> adad {
+    agar n <= 1 {
+        chu 0;
+    }
+    agar n <= 3 {
+        chu 1;
+    }
+    agar n % 2 == 0 {
+        chu 0;
+    }
+    ath mut i = 3;
+    yeli i * i <= n {
+        agar n % i == 0 {
+            chu 0;
+        }
+        i = i + 2;
+    }
+    chu 1;
+}
+
+# fibonacci: nth Fibonacci
+kar fibonacci(n: adad) -> adad {
+    agar n <= 1 {
+        chu n;
+    }
+    ath mut a = 0;
+    ath mut b = 1;
+    ath mut i = 2;
+    yeli i <= n {
+        ath temp = a + b;
+        a = b;
+        b = temp;
+        i = i + 1;
+    }
+    chu b;
+}
+
+# jama_tak: sum 1..n
+kar jama_tak(n: adad) -> adad {
+    chu (n * (n + 1)) / 2;
+}
+
+# joft_chu: is even?
+kar joft_chu(n: adad) -> adad {
+    chu n % 2 == 0;
+}
+
+# taaq_chu: is odd?
+kar taaq_chu(n: adad) -> adad {
+    chu n % 2 != 0;
+}
