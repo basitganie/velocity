@@ -2,15 +2,6 @@ anaw io;
 anaw math;
 anaw lafz;
 
-# =========================================================
-# SCRIPT 3: Functional Pipelines + Number Theory
-# Demonstrates: lambdas, map, filter, higher-order patterns,
-# recursion, string ops, structs, nested logic
-# =========================================================
-
-# ----------------------------------------
-# Integer stack simulation using fixed array
-# ----------------------------------------
 bina Stack {
     data: [adad; 16],
     top: adad,

@@ -290,6 +290,12 @@ void ast_node_free(ASTNode *node) {
             if (node->data.let.type_info) {
                 if (node->data.let.type_info->kind == TYPE_TUPLE)
                     free(node->data.let.type_info->tuple_types);
+                if (node->data.let.type_info->kind == TYPE_ARRAY &&
+                    node->data.let.type_info->elem_typeinfo) {
+                    if (node->data.let.type_info->elem_typeinfo->kind == TYPE_TUPLE)
+                        free(node->data.let.type_info->elem_typeinfo->tuple_types);
+                    free(node->data.let.type_info->elem_typeinfo);
+                }
                 free(node->data.let.type_info);
             }
             break;

@@ -59,6 +59,7 @@ static const char *value_type_name(ValueType t) {
 static StructDef* struct_find(CodeGen *cg, const char *name);
 static int struct_size(CodeGen *cg, StructDef *sd);
 static TypeInfo* typeinfo_clone(TypeInfo *ti);
+static ValueType codegen_cast(CodeGen *cg, ValueType from, ValueType to);
 int codegen_find_var(CodeGen *cg, const char *name);
 static bool mod_func_table_has(const char *name);
 static FunctionSig* func_sig_find(CodeGen *cg, const char *name);
@@ -367,6 +368,44 @@ static StructDef* emit_struct_addr(CodeGen *cg, ASTNode *expr) {
             error("Unknown struct type: %s", fti->struct_name);
         return child;
     }
+    if (expr->type == AST_ARRAY_ACCESS) {
+        ASTNode *base = expr->data.array_access.array;
+        if (base->type != AST_IDENTIFIER)
+            error("array access requires an identifier base");
+        int idx = codegen_find_var(cg, base->data.identifier);
+        if (idx == -1)
+            error("Undefined variable: %s", base->data.identifier);
+        if (cg->var_types[idx] != TYPE_ARRAY)
+            error("Not an array: %s", base->data.identifier);
+        TypeInfo *ti = cg->var_typeinfo[idx];
+        if (!ti || ti->elem_type != TYPE_STRUCT)
+            error("array element is not a struct");
+        if (!ti->elem_typeinfo)
+            error("array element missing struct type info");
+        StructDef *sd = struct_find(cg, ti->elem_typeinfo->struct_name);
+        if (!sd)
+            error("Unknown struct type: %s", ti->elem_typeinfo->struct_name);
+
+        ValueType it = codegen_expression(cg, expr->data.array_access.index);
+        if (it != TYPE_INT)
+            codegen_cast(cg, it, TYPE_INT);
+        codegen_emit(cg, "    mov rcx, rax");
+
+        if (ti->by_ref || ti->array_len < 0)
+            codegen_emit(cg, "    mov rbx, [rbp - %d]", cg->var_offsets[idx]);
+        else
+            codegen_emit(cg, "    lea rbx, [rbp - %d]", cg->var_offsets[idx]);
+
+        int elem_size = array_elem_size(cg, ti);
+        if (elem_size == 8) {
+            codegen_emit(cg, "    lea rax, [rbx + rcx*8]");
+        } else {
+            codegen_emit(cg, "    mov rdx, %d", elem_size);
+            codegen_emit(cg, "    imul rcx, rdx");
+            codegen_emit(cg, "    lea rax, [rbx + rcx]");
+        }
+        return sd;
+    }
     error("struct field access requires a struct base");
     return NULL;
 }
@@ -393,7 +432,36 @@ static TypeInfo* expr_typeinfo(CodeGen *cg, ASTNode *expr) {
         FunctionSig *sig = func_sig_find(cg, sig_name);
         return sig ? sig->return_typeinfo : NULL;
     }
+    case AST_ARRAY_ACCESS: {
+        ASTNode *base = expr->data.array_access.array;
+        if (base->type != AST_IDENTIFIER)
+            return NULL;
+        int idx = codegen_find_var(cg, base->data.identifier);
+        if (idx == -1)
+            return NULL;
+        if (cg->var_types[idx] != TYPE_ARRAY)
+            return NULL;
+        TypeInfo *ti = cg->var_typeinfo[idx];
+        if (ti && ti->elem_type == TYPE_STRUCT)
+            return ti->elem_typeinfo;
+        return NULL;
+    }
     case AST_MODULE_CALL: {
+        if (strcmp(expr->data.module_call.module_name, "system") == 0 &&
+            strcmp(expr->data.module_call.func_name, "argv") == 0 &&
+            expr->data.module_call.arg_count == 0) {
+            static TypeInfo ti;
+            static bool inited = false;
+            if (!inited) {
+                memset(&ti, 0, sizeof(ti));
+                ti.kind = TYPE_ARRAY;
+                ti.elem_type = TYPE_STRING;
+                ti.array_len = -1;
+                inited = true;
+            }
+            return &ti;
+        }
+
         char full_name[MAX_TOKEN_LEN * 2 + 4];
         snprintf(full_name, sizeof(full_name), "%s__%s",
                  expr->data.module_call.module_name,
@@ -565,6 +633,11 @@ static void typeinfo_free(TypeInfo *ti) {
     if (!ti) return;
     if (ti->kind == TYPE_TUPLE)
         free(ti->tuple_types);
+    if (ti->kind == TYPE_ARRAY && ti->elem_typeinfo) {
+        if (ti->elem_typeinfo->kind == TYPE_TUPLE)
+            free(ti->elem_typeinfo->tuple_types);
+        free(ti->elem_typeinfo);
+    }
     free(ti);
 }
 
@@ -1009,6 +1082,61 @@ static ValueType infer_expr_type(CodeGen *cg, ASTNode *expr) {
         return sig->return_type;
     }
     case AST_MODULE_CALL: {
+        if (strcmp(expr->data.module_call.module_name, "system") == 0 &&
+            strcmp(expr->data.module_call.func_name, "argv") == 0 &&
+            expr->data.module_call.arg_count == 0) {
+            return TYPE_ARRAY;
+        }
+
+        if (strcmp(expr->data.module_call.module_name, "random") == 0 &&
+            strcmp(expr->data.module_call.func_name, "choice") == 0) {
+            if (expr->data.module_call.arg_count != 1)
+                error("random.choice() expects 1 argument");
+            ASTNode *arg = expr->data.module_call.args[0];
+            ValueType at = infer_expr_type(cg, arg);
+            TypeInfo *ti = expr_typeinfo(cg, arg);
+            ValueType elem = TYPE_INT;
+
+            if (at == TYPE_ARRAY) {
+                if (!ti && arg->type == AST_CALL &&
+                    (strcmp(arg->data.call.func_name, "map") == 0 ||
+                     strcmp(arg->data.call.func_name, "filter") == 0)) {
+                    ASTNode *arr_expr = arg->data.call.args[0];
+                    ASTNode *lam_expr = arg->data.call.args[1];
+                    if (infer_expr_type(cg, arr_expr) != TYPE_ARRAY)
+                        error("random.choice() requires an array");
+                    TypeInfo *arr_ti = expr_typeinfo(cg, arr_expr);
+                    if (!arr_ti)
+                        error("random.choice() requires array type info");
+                    elem = (strcmp(arg->data.call.func_name, "filter") == 0)
+                             ? arr_ti->elem_type
+                             : infer_expr_type(cg, lam_expr->data.lambda.body);
+                } else {
+                    if (!ti)
+                        error("random.choice() requires array type info");
+                    elem = ti->elem_type;
+                }
+                if (elem == TYPE_STRUCT)
+                    error("random.choice() does not support bina elements yet");
+                return elem;
+            }
+
+            if (at == TYPE_TUPLE) {
+                if (!ti || ti->tuple_count <= 0)
+                    error("random.choice() requires tuple type info");
+                elem = ti->tuple_types[0];
+                for (int i = 1; i < ti->tuple_count; i++) {
+                    if (ti->tuple_types[i] != elem)
+                        error("random.choice() requires uniform tuple element types");
+                }
+                if (elem == TYPE_STRUCT)
+                    error("random.choice() does not support bina elements yet");
+                return elem;
+            }
+
+            error("random.choice() requires an array or tuple");
+        }
+
         char full_name[MAX_TOKEN_LEN * 2 + 4];
         snprintf(full_name, sizeof(full_name), "%s__%s",
                  expr->data.module_call.module_name,
@@ -1229,12 +1357,38 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
         if (!ti)
             error("array missing type info");
         ValueType elem = ti ? ti->elem_type : TYPE_INT;
+        int elem_size = array_elem_size(cg, ti);
 
         codegen_emit(cg, "    mov rcx, rax");
         if (ti->by_ref || ti->array_len < 0)
             codegen_emit(cg, "    mov rbx, [rbp - %d]", cg->var_offsets[idx]);
         else
             codegen_emit(cg, "    lea rbx, [rbp - %d]", cg->var_offsets[idx]);
+        if (elem == TYPE_STRUCT) {
+            if (elem_size == 8)
+                codegen_emit(cg, "    lea rax, [rbx + rcx*8]");
+            else {
+                codegen_emit(cg, "    mov rdx, %d", elem_size);
+                codegen_emit(cg, "    imul rcx, rdx");
+                codegen_emit(cg, "    lea rax, [rbx + rcx]");
+            }
+            return TYPE_STRUCT;
+        }
+        if (elem_size != 8) {
+            codegen_emit(cg, "    mov rdx, %d", elem_size);
+            codegen_emit(cg, "    imul rcx, rdx");
+            codegen_emit(cg, "    add rbx, rcx");
+            if (elem == TYPE_F32) {
+                codegen_emit(cg, "    movss xmm0, [rbx]");
+                return TYPE_F32;
+            }
+            if (elem == TYPE_F64) {
+                codegen_emit(cg, "    movsd xmm0, [rbx]");
+                return TYPE_F64;
+            }
+            codegen_emit(cg, "    mov rax, [rbx]");
+            return elem;
+        }
         if (elem == TYPE_F32) {
             codegen_emit(cg, "    movss xmm0, [rbx + rcx*8]");
             return TYPE_F32;
@@ -1558,6 +1712,8 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
                 error("%s() requires array type info", call_name);
 
             ValueType elem_t = arr_ti->elem_type;
+            if (elem_t == TYPE_STRUCT)
+                error("%s() does not support arrays of bina yet", call_name);
             ASTNode *lambda = lam_expr;
             if (lambda->data.lambda.has_type &&
                 lambda->data.lambda.param_type != elem_t) {
@@ -1608,6 +1764,7 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
             /* allocate output array */
             cg->needs_arr_alloc = true;
             codegen_emit(cg, "    mov rdi, [rbp - %d]", len_off);
+            codegen_emit(cg, "    mov rsi, 8");
             codegen_emit(cg, "    call __vl_arr_alloc");
             codegen_add_var(cg, out_name, TYPE_INT, true, NULL);
             int out_off = cg->var_offsets[cg->var_count - 1];
@@ -1908,6 +2065,30 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
             warned_io_input = true;
         }
 
+        if (strcmp(expr->data.module_call.module_name, "system") == 0 &&
+            strcmp(expr->data.module_call.func_name, "argv") == 0 &&
+            argc == 0) {
+            cg->needs_arr_alloc = true;
+            int lbl = codegen_new_label(cg);
+            codegen_emit(cg, "    mov rdi, [rel _VL_argc]");
+            codegen_emit(cg, "    mov rsi, 8");
+            codegen_emit(cg, "    call __vl_arr_alloc");
+            codegen_emit(cg, "    mov r10, rax");
+            codegen_emit(cg, "    mov rcx, [rel _VL_argc]");
+            codegen_emit(cg, "    mov rdx, [rel _VL_argv]");
+            codegen_emit(cg, "    xor r8, r8");
+            codegen_emit(cg, "_VLargv_loop_%d:", lbl);
+            codegen_emit(cg, "    cmp r8, rcx");
+            codegen_emit(cg, "    jae _VLargv_done_%d", lbl);
+            codegen_emit(cg, "    mov r11, [rdx + r8*8]");
+            codegen_emit(cg, "    mov [r10 + r8*8], r11");
+            codegen_emit(cg, "    inc r8");
+            codegen_emit(cg, "    jmp _VLargv_loop_%d", lbl);
+            codegen_emit(cg, "_VLargv_done_%d:", lbl);
+            codegen_emit(cg, "    mov rax, r10");
+            return TYPE_ARRAY;
+        }
+
         if (strcmp(expr->data.module_call.module_name, "random") == 0 &&
             strcmp(expr->data.module_call.func_name, "choice") == 0) {
             if (argc != 1)
@@ -1944,6 +2125,8 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
                 }
                 if (arr_len == 0)
                     error("random.choice() cannot choose from an empty array");
+                if (elem == TYPE_STRUCT)
+                    error("random.choice() does not support bina elements yet");
             } else if (at == TYPE_TUPLE) {
                 if (!ti || ti->tuple_count <= 0)
                     error("random.choice() requires tuple type info");
@@ -1952,6 +2135,8 @@ ValueType codegen_expression(CodeGen *cg, ASTNode *expr) {
                     if (ti->tuple_types[i] != elem)
                         error("random.choice() requires uniform tuple element types");
                 }
+                if (elem == TYPE_STRUCT)
+                    error("random.choice() does not support bina elements yet");
                 is_tuple = true;
                 tuple_count = ti->tuple_count;
             } else {
@@ -2211,6 +2396,26 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
             stmt->data.let.var_type = TYPE_STRUCT;
             stmt->data.let.has_type = true;
             decl = TYPE_STRUCT;
+        } else if (!stmt->data.let.has_type) {
+            ASTNode *val = stmt->data.let.value;
+            if (val->type == AST_IDENTIFIER ||
+                val->type == AST_CALL ||
+                val->type == AST_MODULE_CALL ||
+                val->type == AST_FIELD_ACCESS ||
+                val->type == AST_ARRAY_ACCESS) {
+                ValueType vt = infer_expr_type(cg, val);
+                if (vt == TYPE_STRUCT || vt == TYPE_ARRAY || vt == TYPE_TUPLE) {
+                    TypeInfo *vti = expr_typeinfo(cg, val);
+                    if (!vti)
+                        error("initializer missing type info");
+                    TypeInfo *ti = typeinfo_clone(vti);
+                    if (ti) ti->by_ref = false;
+                    stmt->data.let.type_info = ti;
+                    stmt->data.let.var_type = vt;
+                    stmt->data.let.has_type = true;
+                    decl = vt;
+                }
+            }
         }
 
         if (stmt->data.let.has_type && is_composite(decl)) {
@@ -2230,6 +2435,15 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
             if (decl == TYPE_ARRAY) {
                 TypeInfo *ti = stmt->data.let.type_info;
                 ASTNode *lit = stmt->data.let.value;
+                int elem_size = array_elem_size(cg, ti);
+                StructDef *esd = NULL;
+                if (ti->elem_type == TYPE_STRUCT) {
+                    if (!ti->elem_typeinfo)
+                        error("array element missing struct type info");
+                    esd = struct_find(cg, ti->elem_typeinfo->struct_name);
+                    if (!esd)
+                        error("Unknown struct type: %s", ti->elem_typeinfo->struct_name);
+                }
                 if (lit->type != AST_ARRAY_LITERAL) {
                     if (ti->array_len >= 0)
                         error("fixed-size arrays require a literal initializer");
@@ -2240,36 +2454,66 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
                 } else if (ti->array_len < 0) {
                     cg->needs_arr_alloc = true;
                     codegen_emit(cg, "    mov rdi, %d", lit->data.array_lit.count);
+                    codegen_emit(cg, "    mov rsi, %d", elem_size);
                     codegen_emit(cg, "    call __vl_arr_alloc");
                     codegen_emit(cg, "    mov [rbp - %d], rax", off);
                     for (int i = 0; i < lit->data.array_lit.count; i++) {
-                        ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
-                        ValueType expect = ti->elem_type;
-                        if (at != expect)
-                            at = codegen_cast(cg, at, expect);
-                        codegen_emit(cg, "    mov rbx, [rbp - %d]", off);
-                        if (expect == TYPE_F32)
-                            codegen_emit(cg, "    movss [rbx + %d], xmm0", i * 8);
-                        else if (expect == TYPE_F64)
-                            codegen_emit(cg, "    movsd [rbx + %d], xmm0", i * 8);
-                        else
-                            codegen_emit(cg, "    mov [rbx + %d], rax", i * 8);
+                        int off_bytes = i * elem_size;
+                        if (ti->elem_type == TYPE_STRUCT) {
+                            if (lit->data.array_lit.elements[i]->type == AST_STRUCT_LITERAL) {
+                                codegen_emit(cg, "    mov rbx, [rbp - %d]", off);
+                                codegen_emit(cg, "    lea rbx, [rbx + %d]", off_bytes);
+                                codegen_emit_struct_literal(cg, esd, lit->data.array_lit.elements[i]);
+                            } else {
+                                ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
+                                if (at != TYPE_STRUCT)
+                                    error("array element expects %s", esd->name);
+                                codegen_emit(cg, "    mov rbx, [rbp - %d]", off);
+                                codegen_emit(cg, "    lea rdx, [rbx + %d]", off_bytes);
+                                codegen_copy_struct(cg, esd, "rdx", "rax");
+                            }
+                        } else {
+                            ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
+                            ValueType expect = ti->elem_type;
+                            if (at != expect)
+                                at = codegen_cast(cg, at, expect);
+                            codegen_emit(cg, "    mov rbx, [rbp - %d]", off);
+                            if (expect == TYPE_F32)
+                                codegen_emit(cg, "    movss [rbx + %d], xmm0", off_bytes);
+                            else if (expect == TYPE_F64)
+                                codegen_emit(cg, "    movsd [rbx + %d], xmm0", off_bytes);
+                            else
+                                codegen_emit(cg, "    mov [rbx + %d], rax", off_bytes);
+                        }
                     }
                 } else {
                     if (lit->data.array_lit.count != ti->array_len)
                         error("array literal length does not match type");
                     for (int i = 0; i < lit->data.array_lit.count; i++) {
-                        ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
-                        ValueType expect = ti->elem_type;
-                        if (at != expect)
-                            at = codegen_cast(cg, at, expect);
-                        int elem_off = off - (i * 8);
-                        if (expect == TYPE_F32)
-                            codegen_emit(cg, "    movss [rbp - %d], xmm0", elem_off);
-                        else if (expect == TYPE_F64)
-                            codegen_emit(cg, "    movsd [rbp - %d], xmm0", elem_off);
-                        else
-                            codegen_emit(cg, "    mov [rbp - %d], rax", elem_off);
+                        int elem_off = off - (i * elem_size);
+                        if (ti->elem_type == TYPE_STRUCT) {
+                            if (lit->data.array_lit.elements[i]->type == AST_STRUCT_LITERAL) {
+                                codegen_emit(cg, "    lea rbx, [rbp - %d]", elem_off);
+                                codegen_emit_struct_literal(cg, esd, lit->data.array_lit.elements[i]);
+                            } else {
+                                ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
+                                if (at != TYPE_STRUCT)
+                                    error("array element expects %s", esd->name);
+                                codegen_emit(cg, "    lea rdx, [rbp - %d]", elem_off);
+                                codegen_copy_struct(cg, esd, "rdx", "rax");
+                            }
+                        } else {
+                            ValueType at = codegen_expression(cg, lit->data.array_lit.elements[i]);
+                            ValueType expect = ti->elem_type;
+                            if (at != expect)
+                                at = codegen_cast(cg, at, expect);
+                            if (expect == TYPE_F32)
+                                codegen_emit(cg, "    movss [rbp - %d], xmm0", elem_off);
+                            else if (expect == TYPE_F64)
+                                codegen_emit(cg, "    movsd [rbp - %d], xmm0", elem_off);
+                            else
+                                codegen_emit(cg, "    mov [rbp - %d], rax", elem_off);
+                        }
                     }
                 }
                 break;
@@ -2311,16 +2555,26 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
             if (decl == TYPE_STRUCT) {
                 TypeInfo *ti = stmt->data.let.type_info;
                 ASTNode *val = stmt->data.let.value;
-                if (val->type != AST_STRUCT_LITERAL)
-                    error("struct declarations require a struct literal initializer");
                 if (!ti)
                     error("missing struct type info");
                 StructDef *sd = struct_find(cg, ti->struct_name);
                 if (!sd)
                     error("Unknown struct type: %s", ti->struct_name);
                 int off = cg->var_offsets[idx];
-                codegen_emit(cg, "    lea rbx, [rbp - %d]", off);
-                codegen_emit_struct_literal(cg, sd, val);
+                if (val->type == AST_STRUCT_LITERAL) {
+                    codegen_emit(cg, "    lea rbx, [rbp - %d]", off);
+                    codegen_emit_struct_literal(cg, sd, val);
+                } else {
+                    ValueType vt = codegen_expression(cg, val);
+                    if (vt != TYPE_STRUCT)
+                        error("struct declarations require a struct initializer");
+                    TypeInfo *vti = expr_typeinfo(cg, val);
+                    if (!vti || strcmp(vti->struct_name, ti->struct_name) != 0)
+                        error("struct type mismatch: expected %s", ti->struct_name);
+                    codegen_emit(cg, "    lea rbx, [rbp - %d]", off);
+                    codegen_emit(cg, "    mov rcx, rax");
+                    codegen_copy_struct(cg, sd, "rbx", "rcx");
+                }
                 break;
             }
         }
@@ -2355,8 +2609,33 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
             error("Cannot assign to immutable variable: %s", stmt->data.assign.var_name);
         int off = cg->var_offsets[idx];
         ValueType decl = cg->var_types[idx];
-        if (is_composite(decl))
+        if (is_composite(decl) && decl != TYPE_STRUCT)
             error("Assignment to composite types is not supported yet");
+        if (decl == TYPE_STRUCT) {
+            TypeInfo *ti = cg->var_typeinfo[idx];
+            if (!ti)
+                error("struct missing type info: %s", stmt->data.assign.var_name);
+            StructDef *sd = struct_find(cg, ti->struct_name);
+            if (!sd)
+                error("Unknown struct type: %s", ti->struct_name);
+            if (ti->by_ref)
+                codegen_emit(cg, "    mov rbx, [rbp - %d]", off);
+            else
+                codegen_emit(cg, "    lea rbx, [rbp - %d]", off);
+            ASTNode *val = stmt->data.assign.value;
+            if (val->type == AST_STRUCT_LITERAL) {
+                codegen_emit_struct_literal(cg, sd, val);
+            } else {
+                if (vt != TYPE_STRUCT)
+                    error("struct assignment requires struct value");
+                TypeInfo *vti = expr_typeinfo(cg, val);
+                if (!vti || strcmp(vti->struct_name, ti->struct_name) != 0)
+                    error("struct type mismatch: expected %s", ti->struct_name);
+                codegen_emit(cg, "    mov rcx, rax");
+                codegen_copy_struct(cg, sd, "rbx", "rcx");
+            }
+            break;
+        }
         if (vt != decl)
             vt = codegen_cast(cg, vt, decl);
         if (decl == TYPE_F32)
@@ -2453,28 +2732,67 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
         TypeInfo *ti = cg->var_typeinfo[idx];
         if (!ti)
             error("array missing type info");
+        ValueType elem = ti->elem_type;
+        int elem_size = array_elem_size(cg, ti);
 
         ValueType it = codegen_expression(cg, stmt->data.array_assign.index);
         if (it != TYPE_INT)
             codegen_cast(cg, it, TYPE_INT);
         codegen_emit(cg, "    mov rcx, rax");
 
-        ValueType vt = codegen_expression(cg, stmt->data.array_assign.value);
-        ValueType expect = ti->elem_type;
-        if (vt != expect)
-            vt = codegen_cast(cg, vt, expect);
-
         if (ti->by_ref || ti->array_len < 0)
             codegen_emit(cg, "    mov rbx, [rbp - %d]", cg->var_offsets[idx]);
         else
             codegen_emit(cg, "    lea rbx, [rbp - %d]", cg->var_offsets[idx]);
 
-        if (expect == TYPE_F32)
-            codegen_emit(cg, "    movss [rbx + rcx*8], xmm0");
-        else if (expect == TYPE_F64)
-            codegen_emit(cg, "    movsd [rbx + rcx*8], xmm0");
-        else
-            codegen_emit(cg, "    mov [rbx + rcx*8], rax");
+        if (elem == TYPE_STRUCT) {
+            StructDef *sd = struct_find(cg, ti->elem_typeinfo->struct_name);
+            if (!sd)
+                error("Unknown struct type: %s", ti->elem_typeinfo->struct_name);
+            if (elem_size == 8) {
+                codegen_emit(cg, "    lea rdx, [rbx + rcx*8]");
+            } else {
+                codegen_emit(cg, "    mov rdx, %d", elem_size);
+                codegen_emit(cg, "    imul rcx, rdx");
+                codegen_emit(cg, "    lea rdx, [rbx + rcx]");
+            }
+            codegen_emit(cg, "    push rdx");
+            if (stmt->data.array_assign.value->type == AST_STRUCT_LITERAL) {
+                codegen_emit(cg, "    pop rbx");
+                codegen_emit_struct_literal(cg, sd, stmt->data.array_assign.value);
+            } else {
+                ValueType vt = codegen_expression(cg, stmt->data.array_assign.value);
+                if (vt != TYPE_STRUCT)
+                    error("array assignment expects %s", sd->name);
+                codegen_emit(cg, "    pop rdx");
+                codegen_copy_struct(cg, sd, "rdx", "rax");
+            }
+            break;
+        }
+
+        ValueType vt = codegen_expression(cg, stmt->data.array_assign.value);
+        ValueType expect = ti->elem_type;
+        if (vt != expect)
+            vt = codegen_cast(cg, vt, expect);
+
+        if (elem_size != 8) {
+            codegen_emit(cg, "    mov rdx, %d", elem_size);
+            codegen_emit(cg, "    imul rcx, rdx");
+            codegen_emit(cg, "    add rbx, rcx");
+            if (expect == TYPE_F32)
+                codegen_emit(cg, "    movss [rbx], xmm0");
+            else if (expect == TYPE_F64)
+                codegen_emit(cg, "    movsd [rbx], xmm0");
+            else
+                codegen_emit(cg, "    mov [rbx], rax");
+        } else {
+            if (expect == TYPE_F32)
+                codegen_emit(cg, "    movss [rbx + rcx*8], xmm0");
+            else if (expect == TYPE_F64)
+                codegen_emit(cg, "    movsd [rbx + rcx*8], xmm0");
+            else
+                codegen_emit(cg, "    mov [rbx + rcx*8], rax");
+        }
         break;
     }
 
@@ -2729,7 +3047,7 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
         }
 
         elem = ti->elem_type;
-        if (is_composite(elem))
+        if (elem == TYPE_ARRAY || elem == TYPE_TUPLE)
             error("for-in does not support composite element types yet");
 
         if (has_type && user_type != elem)
@@ -2740,8 +3058,14 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
         snprintf(idxname, sizeof(idxname), "_bar_idx%d", codegen_new_label(cg));
         snprintf(lenname, sizeof(lenname), "_bar_len%d", codegen_new_label(cg));
 
+        TypeInfo *elem_ti = NULL;
+        if (elem == TYPE_STRUCT) {
+            if (!ti->elem_typeinfo)
+                error("array element missing struct type info");
+            elem_ti = typeinfo_ref(ti->elem_typeinfo);
+        }
         codegen_add_var(cg, stmt->data.for_in_stmt.var_name, elem,
-                        stmt->data.for_in_stmt.is_mut, NULL);
+                        stmt->data.for_in_stmt.is_mut, elem_ti);
         int var_idx = cg->var_count - 1;
 
         codegen_add_var(cg, idxname, TYPE_INT, true, NULL);
@@ -2777,7 +3101,17 @@ void codegen_statement(CodeGen *cg, ASTNode *stmt) {
         else
             codegen_emit(cg, "    lea rbx, [rbp - %d]", cg->var_offsets[arr_idx]);
 
-        if (elem == TYPE_F32) {
+        int elem_size = array_elem_size(cg, ti);
+        if (elem == TYPE_STRUCT) {
+            if (elem_size == 8) {
+                codegen_emit(cg, "    lea rax, [rbx + rcx*8]");
+            } else {
+                codegen_emit(cg, "    mov rdx, %d", elem_size);
+                codegen_emit(cg, "    imul rcx, rdx");
+                codegen_emit(cg, "    lea rax, [rbx + rcx]");
+            }
+            codegen_emit(cg, "    mov [rbp - %d], rax", cg->var_offsets[var_idx]);
+        } else if (elem == TYPE_F32) {
             codegen_emit(cg, "    movss xmm0, [rbx + rcx*8]");
             codegen_emit(cg, "    movss [rbp - %d], xmm0", cg->var_offsets[var_idx]);
         } else if (elem == TYPE_F64) {
@@ -3129,8 +3463,8 @@ static void codegen_emit_array_alloc(CodeGen *cg) {
     codegen_emit(cg, "    mov  [rbx], rdi"); /* store length */
     codegen_emit(cg, "    lea  rdx, [rbx + 8]");
     codegen_emit(cg, "    mov  rcx, rdi");
-    codegen_emit(cg, "    inc  rcx");
-    codegen_emit(cg, "    shl  rcx, 3");
+    codegen_emit(cg, "    imul rcx, rsi");
+    codegen_emit(cg, "    add  rcx, 8");
     codegen_emit(cg, "    add  rax, rcx");
     codegen_emit(cg, "    mov  [rel _VL_arr_hp], rax");
     codegen_emit(cg, "    mov  rax, rdx");

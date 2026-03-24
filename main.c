@@ -78,6 +78,12 @@ static void compile(const char *source_file,
                 if (cg.func_sigs[i].param_typeinfo[j]) {
                     if (cg.func_sigs[i].param_typeinfo[j]->kind == TYPE_TUPLE)
                         free(cg.func_sigs[i].param_typeinfo[j]->tuple_types);
+                    if (cg.func_sigs[i].param_typeinfo[j]->kind == TYPE_ARRAY &&
+                        cg.func_sigs[i].param_typeinfo[j]->elem_typeinfo) {
+                        if (cg.func_sigs[i].param_typeinfo[j]->elem_typeinfo->kind == TYPE_TUPLE)
+                            free(cg.func_sigs[i].param_typeinfo[j]->elem_typeinfo->tuple_types);
+                        free(cg.func_sigs[i].param_typeinfo[j]->elem_typeinfo);
+                    }
                     free(cg.func_sigs[i].param_typeinfo[j]);
                 }
             }
@@ -86,6 +92,12 @@ static void compile(const char *source_file,
         if (cg.func_sigs[i].return_typeinfo) {
             if (cg.func_sigs[i].return_typeinfo->kind == TYPE_TUPLE)
                 free(cg.func_sigs[i].return_typeinfo->tuple_types);
+            if (cg.func_sigs[i].return_typeinfo->kind == TYPE_ARRAY &&
+                cg.func_sigs[i].return_typeinfo->elem_typeinfo) {
+                if (cg.func_sigs[i].return_typeinfo->elem_typeinfo->kind == TYPE_TUPLE)
+                    free(cg.func_sigs[i].return_typeinfo->elem_typeinfo->tuple_types);
+                free(cg.func_sigs[i].return_typeinfo->elem_typeinfo);
+            }
             free(cg.func_sigs[i].return_typeinfo);
         }
     }
