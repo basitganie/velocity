@@ -229,4 +229,7 @@ Suggested areas:
 ---
 
 ## License
-MIT 
+
+MIT License
+
+Copyright © 2026 Basit Ahmad Ganie
