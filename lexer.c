@@ -251,6 +251,8 @@ Token lexer_read_identifier(Lexer *lexer) {
         token.type = TOK_CONTINUE;
     } else if (strcmp(token.value, "anaw") == 0) {  // NEW!
         token.type = TOK_ANAW;
+    } else if (strcmp(token.value, "bina") == 0) {
+        token.type = TOK_BINA;
     } else if (strcmp(token.value, "adad") == 0 || strcmp(token.value, "Adad") == 0) {
         token.type = TOK_ADAD;
     } else if (strcmp(token.value, "Ashari") == 0 || strcmp(token.value, "ashari") == 0) {
@@ -392,6 +394,7 @@ Token lexer_next_token(Lexer *lexer) {
         case '?': token.type = TOK_QUESTION; break;
         case '[': token.type = TOK_LBRACKET; break;
         case ']': token.type = TOK_RBRACKET; break;
+        case '|': token.type = TOK_PIPE; break;
         default:
             token.type = TOK_ERROR;
             sprintf(token.value, "Unexpected character: '%c'", c);
@@ -438,6 +441,7 @@ const char* token_type_name(TokenType type) {
         case TOK_BREAK: return "BREAK";
         case TOK_CONTINUE: return "CONTINUE";
         case TOK_ANAW: return "ANAW";
+        case TOK_BINA: return "BINA";
         case TOK_ADAD: return "ADAD";
         case TOK_ASHARI: return "ASHARI";
         case TOK_ASHARI32: return "ASHARI32";
@@ -475,6 +479,7 @@ const char* token_type_name(TokenType type) {
         case TOK_QUESTION: return "QUESTION";
         case TOK_LBRACKET: return "LBRACKET";
         case TOK_RBRACKET: return "RBRACKET";
+        case TOK_PIPE: return "PIPE";
         case TOK_EOF: return "EOF";
         case TOK_ERROR: return "ERROR";
         default: return "UNKNOWN";

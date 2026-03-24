@@ -39,6 +39,7 @@ typedef enum {
     TOK_BREAK,      // break
     TOK_CONTINUE,   // continue
     TOK_ANAW,       // anaw (import) - NEW!
+    TOK_BINA,       // bina (struct)
     
     // Types
     TOK_ADAD,       // adad (i32/number)
@@ -86,6 +87,7 @@ typedef enum {
     TOK_QUESTION,   // ? - optional types
     TOK_LBRACKET,   // [
     TOK_RBRACKET,   // ]
+    TOK_PIPE,       // |
     
     // Special
     TOK_EOF,
@@ -113,24 +115,41 @@ typedef struct {
 /* AST Node Types */
 typedef enum {
     TYPE_INT,
+    TYPE_OPT_INT,
     TYPE_BOOL,
+    TYPE_OPT_BOOL,
     TYPE_F32,
+    TYPE_OPT_F32,
     TYPE_F64,
+    TYPE_OPT_F64,
     TYPE_STRING,
     TYPE_OPT_STRING,
     TYPE_NULL,
     TYPE_ARRAY,
-    TYPE_TUPLE
+    TYPE_TUPLE,
+    TYPE_STRUCT
 } ValueType;
 
 typedef struct TypeInfo {
-    ValueType kind; /* TYPE_ARRAY or TYPE_TUPLE */
+    ValueType kind; /* TYPE_ARRAY, TYPE_TUPLE, or TYPE_STRUCT */
     ValueType elem_type;
     int array_len;
     ValueType *tuple_types;
     int tuple_count;
+    char struct_name[MAX_TOKEN_LEN];
     bool by_ref;
 } TypeInfo;
+
+typedef struct StructDef {
+    char name[MAX_TOKEN_LEN];
+    char **field_names;
+    ValueType *field_types;
+    TypeInfo **field_typeinfo;
+    int *field_offsets;
+    int field_count;
+    int size;
+    bool sizing;
+} StructDef;
 
 typedef struct FunctionSig {
     char name[MAX_TOKEN_LEN * 2 + 4];
@@ -146,11 +165,13 @@ typedef struct FloatLit FloatLit;
 /* AST Node Types */
 typedef enum {
     AST_PROGRAM,
+    AST_STRUCT_DEF,
     AST_FUNCTION,
     AST_PARAM,
     AST_RETURN,
     AST_LET,
     AST_ASSIGN,
+    AST_FIELD_ASSIGN,
     AST_ARRAY_ASSIGN,
     AST_IF,
     AST_WHILE,
@@ -170,7 +191,10 @@ typedef enum {
     AST_ARRAY_ACCESS,
     AST_TUPLE_LITERAL,
     AST_TUPLE_ACCESS,
+    AST_STRUCT_LITERAL,
+    AST_FIELD_ACCESS,
     AST_RANGE,
+    AST_LAMBDA,
     AST_IDENTIFIER,
     AST_IMPORT,         // NEW!
     AST_MODULE_CALL     // NEW! For module.function()
@@ -228,6 +252,20 @@ typedef struct ASTNode {
             int index;
         } tuple_access;
 
+        // Struct literal
+        struct {
+            char struct_name[MAX_TOKEN_LEN];
+            char **field_names;
+            struct ASTNode **field_values;
+            int field_count;
+        } struct_lit;
+
+        // Struct field access
+        struct {
+            struct ASTNode *base;
+            char field_name[MAX_TOKEN_LEN];
+        } field_access;
+
         // Range expression (start..end or start..=end)
         struct {
             struct ASTNode *start;
@@ -235,6 +273,15 @@ typedef struct ASTNode {
             bool inclusive;
             struct ASTNode *step;
         } range;
+
+        // Lambda expression
+        struct {
+            char param_name[MAX_TOKEN_LEN];
+            bool has_type;
+            ValueType param_type;
+            TypeInfo *param_typeinfo;
+            struct ASTNode *body;
+        } lambda;
         
         // Identifier
         char identifier[MAX_TOKEN_LEN];
@@ -281,6 +328,13 @@ typedef struct ASTNode {
             char var_name[MAX_TOKEN_LEN];
             struct ASTNode *value;
         } assign;
+
+        // Struct field assignment
+        struct {
+            char var_name[MAX_TOKEN_LEN];
+            char field_name[MAX_TOKEN_LEN];
+            struct ASTNode *value;
+        } field_assign;
 
         // Array element assignment
         struct {
@@ -343,11 +397,22 @@ typedef struct ASTNode {
             int body_count;
             bool is_exported;  // NEW! For library functions
         } function;
+
+        // Struct definition
+        struct {
+            char name[MAX_TOKEN_LEN];
+            char **field_names;
+            ValueType *field_types;
+            TypeInfo **field_typeinfo;
+            int field_count;
+        } struct_def;
         
         // Program
         struct {
             struct ASTNode **imports;
             int import_count;
+            struct ASTNode **structs;
+            int struct_count;
             struct ASTNode **functions;
             int function_count;
         } program;
@@ -404,12 +469,16 @@ typedef struct {
     bool has_sret;
     int sret_offset;
     bool needs_arr_alloc;
+    bool needs_lafz_parse;
     struct FloatLit *float_literals;
     int float_count;
     int float_cap;
     int loop_continue_labels[64];
     int loop_break_labels[64];
     int loop_depth;
+    StructDef *struct_defs;
+    int struct_count;
+    int struct_cap;
 } CodeGen;
 
 /* Function Declarations */
@@ -441,6 +510,7 @@ bool parser_match(Parser *parser, TokenType type);
 Token parser_expect(Parser *parser, TokenType type);
 ASTNode* parse_program(Parser *parser);
 ASTNode* parse_import(Parser *parser);  // NEW!
+ASTNode* parse_struct(Parser *parser);  // NEW!
 ASTNode* parse_function(Parser *parser);
 ASTNode* parse_statement(Parser *parser);
 ASTNode* parse_expression(Parser *parser);

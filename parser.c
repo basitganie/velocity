@@ -86,16 +86,52 @@ static ValueType parse_type(Parser *parser, TypeInfo **out_info) {
         return TYPE_TUPLE;
     }
 
+    if (tok.type == TOK_IDENTIFIER &&
+        strcmp(tok.value, "String") != 0 &&
+        strcmp(tok.value, "string") != 0 &&
+        strcmp(tok.value, "Lafz") != 0 &&
+        strcmp(tok.value, "lafz") != 0) {
+        parser_advance(parser);
+        TypeInfo *ti = (TypeInfo*)calloc(1, sizeof(TypeInfo));
+        if (!ti) error("Out of memory");
+        ti->kind = TYPE_STRUCT;
+        strncpy(ti->struct_name, tok.value, MAX_TOKEN_LEN - 1);
+        if (parser_match(parser, TOK_QUESTION)) {
+            error_at(tok.line, tok.column,
+                     "optional types are not supported for bina yet");
+        }
+        if (out_info) *out_info = ti;
+        return TYPE_STRUCT;
+    }
+
     parser_advance(parser);
     ValueType base = parse_type_token(tok);
     if (parser_match(parser, TOK_QUESTION)) {
         parser_advance(parser);
         if (base == TYPE_STRING)
             return TYPE_OPT_STRING;
+        if (base == TYPE_INT)
+            return TYPE_OPT_INT;
+        if (base == TYPE_BOOL)
+            return TYPE_OPT_BOOL;
+        if (base == TYPE_F32)
+            return TYPE_OPT_F32;
+        if (base == TYPE_F64)
+            return TYPE_OPT_F64;
         error_at(tok.line, tok.column,
-                 "optional type only supported for lafz right now");
+                 "optional type only supported for primitive types and lafz");
     }
     return base;
+}
+
+static bool allow_struct_literals = true;
+
+static ASTNode* parse_expression_with_struct(Parser *parser, bool allow) {
+    bool prev = allow_struct_literals;
+    allow_struct_literals = allow;
+    ASTNode *expr = parse_expression(parser);
+    allow_struct_literals = prev;
+    return expr;
 }
 
 static ASTNode* parse_for_header_stmt(Parser *parser) {
@@ -164,11 +200,11 @@ static ASTNode* parse_for_header_stmt(Parser *parser) {
 }
 
 static ASTNode* parse_for_iterable(Parser *parser) {
-    ASTNode *start = parse_expression(parser);
+    ASTNode *start = parse_expression_with_struct(parser, false);
     if (parser_match(parser, TOK_DOTDOT) || parser_match(parser, TOK_DOTDOTEQ)) {
         bool inclusive = parser_match(parser, TOK_DOTDOTEQ);
         parser_advance(parser);
-        ASTNode *end = parse_expression(parser);
+        ASTNode *end = parse_expression_with_struct(parser, false);
         ASTNode *n = ast_node_new(AST_RANGE);
         n->data.range.start = start;
         n->data.range.end = end;
@@ -176,7 +212,7 @@ static ASTNode* parse_for_iterable(Parser *parser) {
         n->data.range.step = NULL;
         if (parser_match(parser, TOK_BY) || parser_match(parser, TOK_STEP)) {
             parser_advance(parser);
-            n->data.range.step = parse_expression(parser);
+            n->data.range.step = parse_expression_with_struct(parser, false);
         }
         return n;
     }
@@ -222,6 +258,25 @@ void ast_node_free(ASTNode *node) {
         case AST_TUPLE_ACCESS:
             ast_node_free(node->data.tuple_access.tuple);
             break;
+        case AST_LAMBDA:
+            if (node->data.lambda.param_typeinfo) {
+                if (node->data.lambda.param_typeinfo->kind == TYPE_TUPLE)
+                    free(node->data.lambda.param_typeinfo->tuple_types);
+                free(node->data.lambda.param_typeinfo);
+            }
+            ast_node_free(node->data.lambda.body);
+            break;
+        case AST_STRUCT_LITERAL:
+            for (int i = 0; i < node->data.struct_lit.field_count; i++) {
+                free(node->data.struct_lit.field_names[i]);
+                ast_node_free(node->data.struct_lit.field_values[i]);
+            }
+            free(node->data.struct_lit.field_names);
+            free(node->data.struct_lit.field_values);
+            break;
+        case AST_FIELD_ACCESS:
+            ast_node_free(node->data.field_access.base);
+            break;
         case AST_MODULE_CALL:
             for (int i = 0; i < node->data.module_call.arg_count; i++)
                 ast_node_free(node->data.module_call.args[i]);
@@ -236,6 +291,9 @@ void ast_node_free(ASTNode *node) {
             }
             break;
         case AST_ASSIGN: ast_node_free(node->data.assign.value); break;
+        case AST_FIELD_ASSIGN:
+            ast_node_free(node->data.field_assign.value);
+            break;
         case AST_ARRAY_ASSIGN:
             ast_node_free(node->data.array_assign.index);
             ast_node_free(node->data.array_assign.value);
@@ -302,10 +360,27 @@ void ast_node_free(ASTNode *node) {
                 ast_node_free(node->data.function.body[i]);
             free(node->data.function.body);
             break;
+        case AST_STRUCT_DEF:
+            for (int i = 0; i < node->data.struct_def.field_count; i++) {
+                free(node->data.struct_def.field_names[i]);
+                if (node->data.struct_def.field_typeinfo &&
+                    node->data.struct_def.field_typeinfo[i]) {
+                    if (node->data.struct_def.field_typeinfo[i]->kind == TYPE_TUPLE)
+                        free(node->data.struct_def.field_typeinfo[i]->tuple_types);
+                    free(node->data.struct_def.field_typeinfo[i]);
+                }
+            }
+            free(node->data.struct_def.field_names);
+            free(node->data.struct_def.field_types);
+            free(node->data.struct_def.field_typeinfo);
+            break;
         case AST_PROGRAM:
             for (int i = 0; i < node->data.program.import_count; i++)
                 ast_node_free(node->data.program.imports[i]);
             free(node->data.program.imports);
+            for (int i = 0; i < node->data.program.struct_count; i++)
+                ast_node_free(node->data.program.structs[i]);
+            free(node->data.program.structs);
             for (int i = 0; i < node->data.program.function_count; i++)
                 ast_node_free(node->data.program.functions[i]);
             free(node->data.program.functions);
@@ -363,6 +438,30 @@ Token parser_expect(Parser *parser, TokenType type) {
 
 ASTNode* parse_primary(Parser *parser) {
     Token cur = parser_current(parser);
+
+    /* Lambda expression: |x| expr or |x: type| expr */
+    if (cur.type == TOK_PIPE) {
+        parser_advance(parser);
+        Token pname = parser_expect(parser, TOK_IDENTIFIER);
+        bool has_type = false;
+        ValueType ptype = TYPE_INT;
+        TypeInfo *ptinfo = NULL;
+        if (parser_match(parser, TOK_COLON)) {
+            parser_advance(parser);
+            ptype = parse_type(parser, &ptinfo);
+            has_type = true;
+        }
+        parser_expect(parser, TOK_PIPE);
+        ASTNode *body = parse_expression(parser);
+
+        ASTNode *n = ast_node_new(AST_LAMBDA);
+        strncpy(n->data.lambda.param_name, pname.value, MAX_TOKEN_LEN - 1);
+        n->data.lambda.has_type = has_type;
+        n->data.lambda.param_type = ptype;
+        n->data.lambda.param_typeinfo = ptinfo;
+        n->data.lambda.body = body;
+        return n;
+    }
 
     /* Integer literal */
     if (cur.type == TOK_INTEGER) {
@@ -452,10 +551,41 @@ ASTNode* parse_primary(Parser *parser) {
         parser_advance(parser);
         ASTNode *node = NULL;
 
+        /* struct literal: Name { field: expr, ... } */
+        if (allow_struct_literals && parser_match(parser, TOK_LBRACE)) {
+            parser_advance(parser);
+            ASTNode *n = ast_node_new(AST_STRUCT_LITERAL);
+            strncpy(n->data.struct_lit.struct_name, name, MAX_TOKEN_LEN - 1);
+            n->data.struct_lit.field_names = malloc(sizeof(char*) * 64);
+            n->data.struct_lit.field_values = malloc(sizeof(ASTNode*) * 64);
+            n->data.struct_lit.field_count = 0;
+
+            if (!parser_match(parser, TOK_RBRACE)) {
+                Token fname = parser_expect(parser, TOK_IDENTIFIER);
+                parser_expect(parser, TOK_COLON);
+                n->data.struct_lit.field_names[n->data.struct_lit.field_count] = strdup(fname.value);
+                n->data.struct_lit.field_values[n->data.struct_lit.field_count] = parse_expression(parser);
+                n->data.struct_lit.field_count++;
+
+                while (parser_match(parser, TOK_COMMA) || parser_match(parser, TOK_SEMICOLON)) {
+                    parser_advance(parser);
+                    if (parser_match(parser, TOK_RBRACE)) break;
+                    fname = parser_expect(parser, TOK_IDENTIFIER);
+                    parser_expect(parser, TOK_COLON);
+                    n->data.struct_lit.field_names[n->data.struct_lit.field_count] = strdup(fname.value);
+                    n->data.struct_lit.field_values[n->data.struct_lit.field_count] = parse_expression(parser);
+                    n->data.struct_lit.field_count++;
+                }
+            }
+            parser_expect(parser, TOK_RBRACE);
+            node = n;
+        }
+
         /* module.function(...) */
-        if (parser_match(parser, TOK_DOT)) {
+        if (!node && parser_match(parser, TOK_DOT)) {
             Token next = parser_peek(parser, 1);
-            if (next.type == TOK_IDENTIFIER) {
+            Token next2 = parser_peek(parser, 2);
+            if (next.type == TOK_IDENTIFIER && next2.type == TOK_LPAREN) {
                 parser_advance(parser); /* consume '.' */
                 Token func_tok = parser_expect(parser, TOK_IDENTIFIER);
                 parser_expect(parser, TOK_LPAREN);
@@ -522,6 +652,15 @@ ASTNode* parse_primary(Parser *parser) {
                     ASTNode *acc = ast_node_new(AST_TUPLE_ACCESS);
                     acc->data.tuple_access.tuple = node;
                     acc->data.tuple_access.index = atoi(idx_tok.value);
+                    node = acc;
+                    continue;
+                }
+                if (peek.type == TOK_IDENTIFIER) {
+                    parser_advance(parser);
+                    Token field_tok = parser_expect(parser, TOK_IDENTIFIER);
+                    ASTNode *acc = ast_node_new(AST_FIELD_ACCESS);
+                    acc->data.field_access.base = node;
+                    strncpy(acc->data.field_access.field_name, field_tok.value, MAX_TOKEN_LEN - 1);
                     node = acc;
                     continue;
                 }
@@ -660,7 +799,7 @@ ASTNode* parse_statement(Parser *parser) {
     /* agar — if */
     if (parser_match(parser, TOK_AGAR)) {
         parser_advance(parser);
-        ASTNode *cond = parse_expression(parser);
+        ASTNode *cond = parse_expression_with_struct(parser, false);
         parser_expect(parser, TOK_LBRACE);
 
         ASTNode **then_s = malloc(sizeof(ASTNode*) * 256);
@@ -692,7 +831,7 @@ ASTNode* parse_statement(Parser *parser) {
     /* yeli — while */
     if (parser_match(parser, TOK_YELI)) {
         parser_advance(parser);
-        ASTNode *cond = parse_expression(parser);
+        ASTNode *cond = parse_expression_with_struct(parser, false);
         parser_expect(parser, TOK_LBRACE);
 
         ASTNode **body = malloc(sizeof(ASTNode*) * 256);
@@ -827,6 +966,27 @@ ASTNode* parse_statement(Parser *parser) {
             parser->pos = saved_pos;
         }
 
+        /* struct field assignment: name.field = expr; */
+        if (parser_match(parser, TOK_DOT)) {
+            parser_advance(parser);
+            if (parser_match(parser, TOK_IDENTIFIER)) {
+                Token field = parser_current(parser);
+                parser_advance(parser);
+                if (parser_match(parser, TOK_ASSIGN)) {
+                    parser_advance(parser);
+                    ASTNode *val = parse_expression(parser);
+                    parser_expect(parser, TOK_SEMICOLON);
+                    ASTNode *n = ast_node_new(AST_FIELD_ASSIGN);
+                    strncpy(n->data.field_assign.var_name, name.value, MAX_TOKEN_LEN - 1);
+                    strncpy(n->data.field_assign.field_name, field.value, MAX_TOKEN_LEN - 1);
+                    n->data.field_assign.value = val;
+                    return n;
+                }
+            }
+            /* not an assignment; backtrack */
+            parser->pos = saved_pos;
+        }
+
         /* plain assignment: name = expr; */
         if (parser_match(parser, TOK_ASSIGN)) {
             parser_advance(parser);
@@ -857,6 +1017,56 @@ ASTNode* parse_import(Parser *parser) {
 
     ASTNode *n = ast_node_new(AST_IMPORT);
     strncpy(n->data.import.module_name, mod.value, MAX_TOKEN_LEN - 1);
+    return n;
+}
+
+/* ── Struct Definition ── */
+
+ASTNode* parse_struct(Parser *parser) {
+    parser_expect(parser, TOK_BINA);
+    Token name = parser_expect(parser, TOK_IDENTIFIER);
+    parser_expect(parser, TOK_LBRACE);
+
+    char **field_names = malloc(sizeof(char*) * 64);
+    ValueType *field_types = malloc(sizeof(ValueType) * 64);
+    TypeInfo **field_typeinfo = malloc(sizeof(TypeInfo*) * 64);
+    int field_count = 0;
+
+    while (!parser_match(parser, TOK_RBRACE)) {
+        Token fname = parser_expect(parser, TOK_IDENTIFIER);
+        parser_expect(parser, TOK_COLON);
+        TypeInfo *ftinfo = NULL;
+        ValueType ftype = parse_type(parser, &ftinfo);
+        if (ftype == TYPE_ARRAY || ftype == TYPE_TUPLE) {
+            if (ftinfo && ftinfo->kind == TYPE_TUPLE)
+                free(ftinfo->tuple_types);
+            free(ftinfo);
+            error_at(fname.line, fname.column,
+                     "bina fields cannot be array or tuple yet");
+        }
+
+        field_names[field_count] = strdup(fname.value);
+        field_types[field_count] = ftype;
+        field_typeinfo[field_count] = ftinfo;
+        field_count++;
+
+        if (parser_match(parser, TOK_COMMA) || parser_match(parser, TOK_SEMICOLON)) {
+            parser_advance(parser);
+            continue;
+        }
+        if (!parser_match(parser, TOK_RBRACE))
+            error_at(fname.line, fname.column,
+                     "expected ',' or '}' after field");
+    }
+
+    parser_expect(parser, TOK_RBRACE);
+
+    ASTNode *n = ast_node_new(AST_STRUCT_DEF);
+    strncpy(n->data.struct_def.name, name.value, MAX_TOKEN_LEN - 1);
+    n->data.struct_def.field_names = field_names;
+    n->data.struct_def.field_types = field_types;
+    n->data.struct_def.field_typeinfo = field_typeinfo;
+    n->data.struct_def.field_count = field_count;
     return n;
 }
 
@@ -937,6 +1147,8 @@ ASTNode* parse_program(Parser *parser) {
     ASTNode *prog = ast_node_new(AST_PROGRAM);
     prog->data.program.imports         = malloc(sizeof(ASTNode*) * MAX_IMPORTS);
     prog->data.program.import_count    = 0;
+    prog->data.program.structs         = malloc(sizeof(ASTNode*) * 256);
+    prog->data.program.struct_count    = 0;
     prog->data.program.functions       = malloc(sizeof(ASTNode*) * 256);
     prog->data.program.function_count  = 0;
 
@@ -944,6 +1156,9 @@ ASTNode* parse_program(Parser *parser) {
         if (parser_match(parser, TOK_ANAW))
             prog->data.program.imports[prog->data.program.import_count++] =
                 parse_import(parser);
+        else if (parser_match(parser, TOK_BINA))
+            prog->data.program.structs[prog->data.program.struct_count++] =
+                parse_struct(parser);
         else
             prog->data.program.functions[prog->data.program.function_count++] =
                 parse_function(parser);

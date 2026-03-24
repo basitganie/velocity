@@ -7,8 +7,7 @@
 static void print_usage(const char *prog) {
     printf("Velocity Compiler - 0.1.1\n\n");
     printf("Usage: %s <source.vel> [-o output] [-v]\n\n", prog);
-   // printf("Keywords: kar chu ath agar nate yeli anaw adad\n");
-   // printf("Example:  ./velocity hello.vel -o hello && ./hello\n\n");
+    printf("Author: Basit Ahmad Ganie\ncontact: basitahmed1412@gmail.com\n");
 }
 
 static void compile(const char *source_file,
@@ -97,6 +96,22 @@ static void compile(const char *source_file,
     free(cg.var_mutable);
     free(cg.var_sizes);
     free(cg.var_typeinfo);
+    for (int i = 0; i < cg.struct_count; i++) {
+        StructDef *sd = &cg.struct_defs[i];
+        for (int j = 0; j < sd->field_count; j++) {
+            free(sd->field_names[j]);
+            if (sd->field_typeinfo && sd->field_typeinfo[j]) {
+                if (sd->field_typeinfo[j]->kind == TYPE_TUPLE)
+                    free(sd->field_typeinfo[j]->tuple_types);
+                free(sd->field_typeinfo[j]);
+            }
+        }
+        free(sd->field_names);
+        free(sd->field_types);
+        free(sd->field_typeinfo);
+        free(sd->field_offsets);
+    }
+    free(cg.struct_defs);
     fclose(asm_fp);
 
     /* ── 8. Assemble main .asm ── */
