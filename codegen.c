@@ -63,6 +63,19 @@ int codegen_find_var(CodeGen *cg, const char *name);
 static bool mod_func_table_has(const char *name);
 static FunctionSig* func_sig_find(CodeGen *cg, const char *name);
 
+static int array_elem_size(CodeGen *cg, TypeInfo *ti) {
+    if (!ti) return 8;
+    if (ti->elem_type == TYPE_STRUCT) {
+        if (!ti->elem_typeinfo)
+            error("array element missing struct type info");
+        StructDef *sd = struct_find(cg, ti->elem_typeinfo->struct_name);
+        if (!sd)
+            error("Unknown struct type: %s", ti->elem_typeinfo->struct_name);
+        return struct_size(cg, sd);
+    }
+    return 8;
+}
+
 static int typeinfo_size(CodeGen *cg, ValueType t, TypeInfo *ti) {
     if (t == TYPE_STRUCT) {
         if (!ti) error("struct type missing info");
@@ -74,7 +87,7 @@ static int typeinfo_size(CodeGen *cg, ValueType t, TypeInfo *ti) {
     if (t == TYPE_ARRAY && ti) {
         if (ti->by_ref || ti->array_len < 0)
             return 8;
-        return ti->array_len * 8;
+        return ti->array_len * array_elem_size(cg, ti);
     }
     if (t == TYPE_TUPLE && ti) {
         if (ti->by_ref)
@@ -289,6 +302,25 @@ static StructDef* struct_def_from_expr(CodeGen *cg, ASTNode *expr) {
             error("Unknown struct type: %s", fti->struct_name);
         return child;
     }
+    if (expr->type == AST_ARRAY_ACCESS) {
+        ASTNode *base = expr->data.array_access.array;
+        if (base->type != AST_IDENTIFIER)
+            error("array access requires an identifier base");
+        int idx = codegen_find_var(cg, base->data.identifier);
+        if (idx == -1)
+            error("Undefined variable: %s", base->data.identifier);
+        if (cg->var_types[idx] != TYPE_ARRAY)
+            error("Not an array: %s", base->data.identifier);
+        TypeInfo *ti = cg->var_typeinfo[idx];
+        if (!ti || ti->elem_type != TYPE_STRUCT)
+            error("array element is not a struct");
+        if (!ti->elem_typeinfo)
+            error("array element missing struct type info");
+        StructDef *sd = struct_find(cg, ti->elem_typeinfo->struct_name);
+        if (!sd)
+            error("Unknown struct type: %s", ti->elem_typeinfo->struct_name);
+        return sd;
+    }
     error("struct field access requires a struct base");
     return NULL;
 }
@@ -389,7 +421,7 @@ static int sizeof_type(CodeGen *cg, ValueType t, TypeInfo *ti) {
     switch (t) {
     case TYPE_ARRAY:
         if (ti && ti->array_len >= 0)
-            return ti->array_len * 8;
+            return ti->array_len * array_elem_size(cg, ti);
         return 8;
     case TYPE_TUPLE:
         if (ti && ti->tuple_count > 0)
@@ -410,6 +442,13 @@ static char* type_name_string(CodeGen *cg, ValueType t, TypeInfo *ti) {
         if (!ti)
             return strdup("array");
         const char *elem = value_type_name(ti->elem_type);
+        char elem_buf[256];
+        if (ti->elem_type == TYPE_STRUCT && ti->elem_typeinfo &&
+            ti->elem_typeinfo->struct_name[0] != '\0') {
+            snprintf(elem_buf, sizeof(elem_buf), "bina:%s",
+                     ti->elem_typeinfo->struct_name);
+            elem = elem_buf;
+        }
         char buf[128];
         if (ti->array_len >= 0)
             snprintf(buf, sizeof(buf), "array[%s; %d]", elem, ti->array_len);
@@ -499,6 +538,7 @@ static TypeInfo* typeinfo_clone(TypeInfo *ti) {
     if (!c) error("Out of memory");
     c->kind = ti->kind;
     c->elem_type = ti->elem_type;
+    c->elem_typeinfo = NULL;
     c->array_len = ti->array_len;
     c->tuple_count = ti->tuple_count;
     c->by_ref = ti->by_ref;
@@ -508,6 +548,9 @@ static TypeInfo* typeinfo_clone(TypeInfo *ti) {
         if (!c->tuple_types) error("Out of memory");
         for (int i = 0; i < ti->tuple_count; i++)
             c->tuple_types[i] = ti->tuple_types[i];
+    }
+    if (ti->kind == TYPE_ARRAY && ti->elem_typeinfo) {
+        c->elem_typeinfo = typeinfo_clone(ti->elem_typeinfo);
     }
     return c;
 }

@@ -133,6 +133,7 @@ typedef enum {
 typedef struct TypeInfo {
     ValueType kind; /* TYPE_ARRAY, TYPE_TUPLE, or TYPE_STRUCT */
     ValueType elem_type;
+    struct TypeInfo *elem_typeinfo; /* for arrays of structs */
     int array_len;
     ValueType *tuple_types;
     int tuple_count;

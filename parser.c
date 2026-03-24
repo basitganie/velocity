@@ -36,13 +36,16 @@ static ValueType parse_type(Parser *parser, TypeInfo **out_info) {
 
     if (tok.type == TOK_LBRACKET) {
         parser_advance(parser);
-        Token etok = parser_current(parser);
-        parser_advance(parser);
-        ValueType elem = parse_type_token(etok);
+        TypeInfo *elem_info = NULL;
+        ValueType elem = parse_type(parser, &elem_info);
+        if (elem == TYPE_ARRAY || elem == TYPE_TUPLE)
+            error_at(tok.line, tok.column,
+                     "array element cannot be array or tuple yet");
         TypeInfo *ti = (TypeInfo*)calloc(1, sizeof(TypeInfo));
         if (!ti) error("Out of memory");
         ti->kind = TYPE_ARRAY;
         ti->elem_type = elem;
+        ti->elem_typeinfo = elem_info;
         if (parser_match(parser, TOK_RBRACKET)) {
             parser_advance(parser);
             ti->array_len = -1; /* dynamic array */
