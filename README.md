@@ -177,8 +177,8 @@ ath x: adad? = null
 
 ```vel
 struct Point {
-    x: ashari32,
-    y: ashari32,
+    x: ashari32;
+    y: ashari32;
 }
 ```
 
