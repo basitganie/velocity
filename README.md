@@ -58,6 +58,7 @@ Core properties:
 | `phutraw`        | break    | `break`            |
 | `pakh`           | continue | `continue`         |
 | `anaw`           | import   | `import`           |
+| `bina`           | struct   | `structure`        |
 
 ## Types
 
@@ -82,7 +83,7 @@ Core properties:
 
 * Handwritten lexer and parser
 * Modular compilation pipeline
-* Custom code generation (likely assembly-backed)
+* Custom code generation
 
 ### Standard Library
 
@@ -130,16 +131,19 @@ This produces the `velocity` compiler binary.
 Compile a Velocity file:
 
 ```bash
-./velocity file.vel
+./velocity file.vel -o out -v
 ```
 
 ## Example
 
 ```vel
-x = 10
-y = 20
+anaw io;
 
-print(x + y)
+kar main() -> adad {
+    ath x = 10;
+    ath y = 20;
+    io.chhaap(x + y);
+}
 ```
 
 More examples:
@@ -156,14 +160,14 @@ More examples:
 Implicitly declared via assignment:
 
 ```vel
-x = 5
+ath mut x = 5
 ```
 
 ### Control Flow
 
 ```vel
 bar i manz 0..10 {
-    print(i)
+    io.chhaap(i)
 }
 ```
 
@@ -176,7 +180,7 @@ ath x: adad? = null
 ### Structs
 
 ```vel
-struct Point {
+bina Point {
     x: ashari32;
     y: ashari32;
 }
