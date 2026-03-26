@@ -58,7 +58,7 @@ Core properties:
 | `phutraw`        | break    | `break`            |
 | `pakh`           | continue | `continue`         |
 | `anaw`           | import   | `import`           |
-| `bina`           | struct   | `structure`        |
+| `bina`           | structure| `struct`           |
 
 ## Types
 
