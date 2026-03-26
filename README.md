@@ -108,7 +108,6 @@ velocity/
 ├── module.c        # Module handling
 ├── velocity.h      # Shared definitions
 ├── stdlib/         # Standard library (ASM + .vel)
-├── tests/          # Language test suite
 ├── examples/       # Example programs
 ├── Makefile        # Build system
 └── velocity        # Compiled binary
@@ -133,15 +132,6 @@ Compile a Velocity file:
 ```bash
 ./velocity file.vel
 ```
-
-Run tests:
-
-```bash
-cd tests
-./run_all.sh
-```
-
----
 
 ## Example
 
@@ -172,7 +162,7 @@ x = 5
 ### Control Flow
 
 ```vel
-for i in 0..10 {
+bar i manz 0..10 {
     print(i)
 }
 ```
@@ -180,15 +170,15 @@ for i in 0..10 {
 ### Optionals
 
 ```vel
-x = null
+ath x: adad? = null
 ```
 
 ### Structs
 
 ```vel
 struct Point {
-    x
-    y
+    x: ashari32,
+    y: ashari32,
 }
 ```
 
