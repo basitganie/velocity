@@ -1,0 +1,723 @@
+# Velocity Standard Library - Math Module
+# Portable math helpers implemented in Velocity code.
+
+kar math__pi() -> ashari {
+    chu 3.14159265358979323846;
+}
+
+kar math__tau() -> ashari {
+    chu 6.28318530717958647692;
+}
+
+kar math__e() -> ashari {
+    chu 2.71828182845904523536;
+}
+
+kar math__inf() -> ashari {
+    chu 1.0 / 0.0;
+}
+
+kar math__nan() -> ashari {
+    chu 0.0 / 0.0;
+}
+
+kar math__abs(x: ashari) -> ashari {
+    agar x < 0.0 {
+        chu 0.0 - x;
+    }
+    chu x;
+}
+
+kar math__fabs(x: ashari) -> ashari {
+    chu math__abs(x);
+}
+
+kar math__iabs(x: adad) -> adad {
+    agar x < 0 {
+        chu 0 - x;
+    }
+    chu x;
+}
+
+kar math__min(a: adad, b: adad) -> adad {
+    agar a < b {
+        chu a;
+    }
+    chu b;
+}
+
+kar math__max(a: adad, b: adad) -> adad {
+    agar a > b {
+        chu a;
+    }
+    chu b;
+}
+
+kar math__clamp(x: adad, lo: adad, hi: adad) -> adad {
+    agar x < lo {
+        chu lo;
+    }
+    agar x > hi {
+        chu hi;
+    }
+    chu x;
+}
+
+kar math__minf(a: ashari, b: ashari) -> ashari {
+    agar a < b {
+        chu a;
+    }
+    chu b;
+}
+
+kar math__maxf(a: ashari, b: ashari) -> ashari {
+    agar a > b {
+        chu a;
+    }
+    chu b;
+}
+
+kar math__trunc(x: ashari) -> ashari {
+    ath mut n : adad = x;
+    ath mut out : ashari = n;
+    chu out;
+}
+
+kar math__floor(x: ashari) -> ashari {
+    ath mut n = math__trunc(x);
+    agar n > x {
+        n -= 1.0;
+    }
+    chu n;
+}
+
+kar math__ceil(x: ashari) -> ashari {
+    ath mut n = math__trunc(x);
+    agar n < x {
+        n += 1.0;
+    }
+    chu n;
+}
+
+kar math__round_internal(x: ashari) -> ashari {
+    ath mut t = math__trunc(x);
+    ath mut frac = x - t;
+    agar x >= 0.0 {
+        agar frac >= 0.5 {
+            chu t + 1.0;
+        }
+        chu t;
+    }
+    agar frac <= -0.5 {
+        chu t - 1.0;
+    }
+    chu t;
+}
+
+kar math__pow(base: ashari, exp: adad) -> ashari {
+    ath mut result = 1.0;
+    ath mut e = exp;
+    ath mut b = base;
+    agar e < 0 {
+        b = 1.0 / b;
+        e = 0 - e;
+    }
+    yeli e > 0 {
+        result = result * b;
+        e -= 1;
+    }
+    chu result;
+}
+
+kar math__sqrt(x: ashari) -> ashari {
+    agar x < 0.0 {
+        chu math__nan();
+    }
+    agar x == 0.0 {
+        chu 0.0;
+    }
+    ath mut guess = x;
+    agar guess < 1.0 {
+        guess = 1.0;
+    }
+    ath mut i = 0;
+    yeli i < 40 {
+        guess = (guess + x / guess) / 2.0;
+        i += 1;
+    }
+    chu guess;
+}
+
+kar math__cbrt(x: ashari) -> ashari {
+    agar x == 0.0 {
+        chu 0.0;
+    }
+    ath mut guess = x;
+    agar math__fabs(guess) < 1.0 {
+        guess = 1.0;
+    }
+    ath mut i = 0;
+    yeli i < 30 {
+        guess = (2.0 * guess + x / (guess * guess)) / 3.0;
+        i += 1;
+    }
+    chu guess;
+}
+
+kar math__exp(x: ashari) -> ashari {
+    agar x == 0.0 {
+        chu 1.0;
+    }
+    agar x < 0.0 {
+        chu 1.0 / math__exp(0.0 - x);
+    }
+
+    ath mut n: adad = math__trunc(x);
+    ath mut frac = x - n;
+
+    ath mut whole = 1.0;
+    ath mut i = 0;
+    yeli i < n {
+        whole = whole * math__e();
+        i += 1;
+    }
+
+    ath mut term = 1.0;
+    ath mut sum = 1.0;
+    ath mut k = 1;
+    yeli k <= 24 {
+        term = term * frac / k;
+        sum = sum + term;
+        k += 1;
+    }
+
+    chu whole * sum;
+}
+
+kar math__exp2(x: ashari) -> ashari {
+    chu math__exp(x * 0.6931471805599453);
+}
+
+kar math__expm1(x: ashari) -> ashari {
+    chu math__exp(x) - 1.0;
+}
+
+kar math__log(x: ashari) -> ashari {
+    agar x <= 0.0 {
+        chu math__nan();
+    }
+
+    ath mut y = x;
+    ath mut k: adad = 0;
+    yeli y > 2.0 {
+        y = y * 0.5;
+        k += 1;
+    }
+    yeli y < 0.5 {
+        y = y * 2.0;
+        k -= 1;
+    }
+
+    ath mut z = (y - 1.0) / (y + 1.0);
+    ath mut z2 = z * z;
+    ath mut term = z;
+    ath mut sum = 0.0;
+    ath mut n: adad = 1;
+
+    yeli n <= 39 {
+        sum = sum + term / n;
+        term = term * z2;
+        n += 2;
+    }
+
+    ath mut out = 2.0 * sum;
+    out = out + (k * 0.6931471805599453);
+    chu out;
+}
+
+kar math__log2(x: ashari) -> ashari {
+    chu math__log(x) / 0.6931471805599453;
+}
+
+kar math__log10(x: ashari) -> ashari {
+    chu math__log(x) / 2.302585092994046;
+}
+
+kar math__log1p(x: ashari) -> ashari {
+    agar x <= -1.0 {
+        chu math__nan();
+    }
+    chu math__log(1.0 + x);
+}
+
+kar math__sin(x: ashari) -> ashari {
+    ath mut y = x;
+    ath mut p = math__pi();
+    ath mut t = math__tau();
+
+    yeli y > p {
+        y = y - t;
+    }
+    yeli y < (0.0 - p) {
+        y = y + t;
+    }
+
+    ath mut term = y;
+    ath mut sum = y;
+    ath mut n: adad = 1;
+    yeli n <= 10 {
+        term = term * (0.0 - y * y) / ((2 * n) * (2 * n + 1));
+        sum = sum + term;
+        n += 1;
+    }
+    chu sum;
+}
+
+kar math__cos(x: ashari) -> ashari {
+    ath mut y = x;
+    ath mut p = math__pi();
+    ath mut t = math__tau();
+
+    yeli y > p {
+        y = y - t;
+    }
+    yeli y < (0.0 - p) {
+        y = y + t;
+    }
+
+    ath mut term = 1.0;
+    ath mut sum = 1.0;
+    ath mut n: adad = 1;
+    yeli n <= 10 {
+        term = term * (0.0 - y * y) / ((2 * n - 1) * (2 * n));
+        sum = sum + term;
+        n += 1;
+    }
+    chu sum;
+}
+
+kar math__tan(x: ashari) -> ashari {
+    ath mut c = math__cos(x);
+    agar math__fabs(c) < 1e-12 {
+        agar x >= 0.0 {
+            chu math__inf();
+        }
+        chu 0.0 - math__inf();
+    }
+    chu math__sin(x) / c;
+}
+
+kar math__atan(x: ashari) -> ashari {
+    agar x == 0.0 {
+        chu 0.0;
+    }
+
+    ath mut s = 1.0;
+    ath mut a = x;
+    agar a < 0.0 {
+        a = 0.0 - a;
+        s = -1.0;
+    }
+
+    agar a > 1.0 {
+        chu s * (math__pi() / 2.0 - math__atan(1.0 / a));
+    }
+
+    ath mut term = a;
+    ath mut sum = a;
+    ath mut n: adad = 1;
+    yeli n <= 25 {
+        term = term * (0.0 - a * a);
+        sum = sum + term / (2 * n + 1);
+        n += 1;
+    }
+
+    chu s * sum;
+}
+
+kar math__atan2(y: ashari, x: ashari) -> ashari {
+    agar x > 0.0 {
+        chu math__atan(y / x);
+    }
+    agar x < 0.0 {
+        agar y >= 0.0 {
+            chu math__atan(y / x) + math__pi();
+        }
+        chu math__atan(y / x) - math__pi();
+    }
+    agar y > 0.0 {
+        chu math__pi() / 2.0;
+    }
+    agar y < 0.0 {
+        chu 0.0 - (math__pi() / 2.0);
+    }
+    chu 0.0;
+}
+
+kar math__asin(x: ashari) -> ashari {
+    agar math__fabs(x) > 1.0 {
+        chu math__nan();
+    }
+    chu math__atan2(x, math__sqrt(1.0 - x * x));
+}
+
+kar math__acos(x: ashari) -> ashari {
+    agar math__fabs(x) > 1.0 {
+        chu math__nan();
+    }
+    chu math__atan2(math__sqrt(1.0 - x * x), x);
+}
+
+kar math__sinh(x: ashari) -> ashari {
+    chu (math__exp(x) - math__exp(0.0 - x)) / 2.0;
+}
+
+kar math__cosh(x: ashari) -> ashari {
+    chu (math__exp(x) + math__exp(0.0 - x)) / 2.0;
+}
+
+kar math__tanh(x: ashari) -> ashari {
+    ath mut s = math__sinh(x);
+    ath mut c = math__cosh(x);
+    agar c == 0.0 {
+        chu 0.0;
+    }
+    chu s / c;
+}
+
+kar math__asinh(x: ashari) -> ashari {
+    chu math__log(x + math__sqrt(x * x + 1.0));
+}
+
+kar math__acosh(x: ashari) -> ashari {
+    agar x < 1.0 {
+        chu math__nan();
+    }
+    chu math__log(x + math__sqrt((x - 1.0) * (x + 1.0)));
+}
+
+kar math__atanh(x: ashari) -> ashari {
+    agar math__fabs(x) >= 1.0 {
+        chu math__nan();
+    }
+    chu 0.5 * math__log((1.0 + x) / (1.0 - x));
+}
+
+kar math__degrees(x: ashari) -> ashari {
+    chu x * (180.0 / math__pi());
+}
+
+kar math__radians(x: ashari) -> ashari {
+    chu x * (math__pi() / 180.0);
+}
+
+kar math__hypot(x: ashari, y: ashari) -> ashari {
+    chu math__sqrt(x * x + y * y);
+}
+
+kar math__dist(x1: ashari, y1: ashari, x2: ashari, y2: ashari) -> ashari {
+    chu math__hypot(x2 - x1, y2 - y1);
+}
+
+kar math__copysign(x: ashari, y: ashari) -> ashari {
+    ath mut a = math__fabs(x);
+    agar y < 0.0 {
+        chu 0.0 - a;
+    }
+    chu a;
+}
+
+kar math__fmod(x: ashari, y: ashari) -> ashari {
+    agar y == 0.0 {
+        chu math__nan();
+    }
+    ath mut q = math__trunc(x / y);
+    chu x - q * y;
+}
+
+kar math__remainder(x: ashari, y: ashari) -> ashari {
+    agar y == 0.0 {
+        chu math__nan();
+    }
+    ath mut q = math__round_internal(x / y);
+    chu x - q * y;
+}
+
+kar math__modf(x: ashari) -> (ashari, ashari) {
+    ath mut i = math__trunc(x);
+    ath mut f = x - i;
+    chu (f, i);
+}
+
+kar math__frexp(x: ashari) -> (ashari, adad) {
+    agar x == 0.0 {
+        chu (0.0, 0);
+    }
+
+    ath mut a = math__fabs(x);
+    ath mut e: adad = 0;
+
+    yeli a >= 1.0 {
+        a = a * 0.5;
+        e += 1;
+    }
+    yeli a < 0.5 {
+        a = a * 2.0;
+        e -= 1;
+    }
+
+    agar x < 0.0 {
+        a = 0.0 - a;
+    }
+
+    chu (a, e);
+}
+
+kar math__ldexp(x: ashari, exp: adad) -> ashari {
+    ath mut out = x;
+    ath mut e = exp;
+    agar e > 0 {
+        yeli e > 0 {
+            out = out * 2.0;
+            e -= 1;
+        }
+        chu out;
+    }
+    yeli e < 0 {
+        out = out * 0.5;
+        e += 1;
+    }
+    chu out;
+}
+
+kar math__isnan(x: ashari) -> bool {
+    chu x != x;
+}
+
+kar math__isinf(x: ashari) -> bool {
+    ath mut infv = math__inf();
+    chu x == infv ya x == (0.0 - infv);
+}
+
+kar math__isfinite(x: ashari) -> bool {
+    chu na math__isnan(x) wa na math__isinf(x);
+}
+
+kar math__ulp(x: ashari) -> ashari {
+    agar math__isnan(x) {
+        chu math__nan();
+    }
+    agar math__isinf(x) {
+        chu math__inf();
+    }
+    agar x == 0.0 {
+        chu math__ldexp(1.0, -1074);
+    }
+
+    ath mut a = math__fabs(x);
+    ath mut e: adad = 0;
+
+    yeli a >= 2.0 {
+        a = a * 0.5;
+        e += 1;
+    }
+    yeli a < 1.0 {
+        a = a * 2.0;
+        e -= 1;
+    }
+
+    chu math__ldexp(1.0, e - 52);
+}
+
+kar math__nextafter(x: ashari, y: ashari) -> ashari {
+    agar math__isnan(x) ya math__isnan(y) {
+        chu math__nan();
+    }
+    agar x == y {
+        chu y;
+    }
+    ath mut step = math__ulp(x);
+    agar step == 0.0 {
+        step = math__ldexp(1.0, -1074);
+    }
+    agar y > x {
+        chu x + step;
+    }
+    chu x - step;
+}
+
+kar math__isclose_tol(a: ashari, b: ashari, rel_tol: ashari, abs_tol: ashari) -> bool {
+    agar math__isnan(a) ya math__isnan(b) {
+        chu apuz;
+    }
+    ath mut diff = math__fabs(a - b);
+    ath mut lim1 = abs_tol;
+    ath mut lim2 = rel_tol * math__maxf(math__fabs(a), math__fabs(b));
+    ath mut limit = math__maxf(lim1, lim2);
+    chu diff <= limit;
+}
+
+kar math__isclose(a: ashari, b: ashari) -> bool {
+    chu math__isclose_tol(a, b, 1e-9, 0.0);
+}
+
+kar math__erf(x: ashari) -> ashari {
+    ath mut ax = math__fabs(x);
+    ath mut t = 1.0 / (1.0 + 0.5 * ax);
+
+    ath mut poly = t * 0.17087277;
+    poly = -0.82215223 + poly;
+    poly = 1.48851587 + t * poly;
+    poly = -1.13520398 + t * poly;
+    poly = 0.27886807 + t * poly;
+    poly = -0.18628806 + t * poly;
+    poly = 0.09678418 + t * poly;
+    poly = 0.37409196 + t * poly;
+    poly = 1.00002368 + t * poly;
+
+    ath mut expo = 0.0 - ax * ax - 1.26551223 + t * poly;
+    ath mut tau = t * math__exp(expo);
+
+    agar x >= 0.0 {
+        chu 1.0 - tau;
+    }
+    chu tau - 1.0;
+}
+
+kar math__erfc(x: ashari) -> ashari {
+    chu 1.0 - math__erf(x);
+}
+
+kar math__lgamma(x: ashari) -> ashari {
+    agar x <= 0.0 {
+        chu math__nan();
+    }
+
+    ath mut inv = 1.0 / x;
+    ath mut inv2 = inv * inv;
+    ath mut c1 = inv / 12.0;
+    ath mut c2 = (inv2 * inv) / 360.0;
+    ath mut c3 = (inv2 * inv2 * inv) / 1260.0;
+    ath mut corr = c1 - c2 + c3;
+
+    chu (x - 0.5) * math__log(x) - x + 0.9189385332046727 + corr;
+}
+
+kar math__gamma(x: ashari) -> ashari {
+    chu math__exp(math__lgamma(x));
+}
+
+kar math__factorial(n: adad) -> adad {
+    agar n < 0 {
+        chu 0;
+    }
+    ath mut out = 1;
+    ath mut i = 2;
+    yeli i <= n {
+        out = out * i;
+        i += 1;
+    }
+    chu out;
+}
+
+kar math__gcd(a: adad, b: adad) -> adad {
+    ath mut x = math__iabs(a);
+    ath mut y = math__iabs(b);
+    yeli y != 0 {
+        ath mut t = x % y;
+        x = y;
+        y = t;
+    }
+    chu x;
+}
+
+kar math__lcm(a: adad, b: adad) -> adad {
+    agar a == 0 ya b == 0 {
+        chu 0;
+    }
+    chu math__iabs((a / math__gcd(a, b)) * b);
+}
+
+kar math__isqrt(n: adad) -> adad {
+    agar n < 0 {
+        chu 0;
+    }
+    agar n < 2 {
+        chu n;
+    }
+    ath mut x = n;
+    ath mut y = (x + 1) / 2;
+    yeli y < x {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    chu x;
+}
+
+kar math__comb(n: adad, k: adad) -> adad {
+    agar n < 0 ya k < 0 ya k > n {
+        chu 0;
+    }
+    ath mut kk = k;
+    agar kk > n - kk {
+        kk = n - kk;
+    }
+    ath mut out = 1;
+    ath mut i = 1;
+    yeli i <= kk {
+        out = (out * (n - kk + i)) / i;
+        i += 1;
+    }
+    chu out;
+}
+
+kar math__perm(n: adad, k: adad) -> adad {
+    agar n < 0 ya k < 0 ya k > n {
+        chu 0;
+    }
+    ath mut out = 1;
+    ath mut i = 0;
+    yeli i < k {
+        out = out * (n - i);
+        i += 1;
+    }
+    chu out;
+}
+
+kar math__fsum(xs: [ashari]) -> ashari {
+    ath mut sum = 0.0;
+    ath mut c = 0.0;
+    ath mut i = 0;
+    yeli i < len(xs) {
+        ath mut y = xs[i] - c;
+        ath mut t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+        i += 1;
+    }
+    chu sum;
+}
+
+kar math__prod(xs: [ashari]) -> ashari {
+    ath mut out = 1.0;
+    ath mut i = 0;
+    yeli i < len(xs) {
+        out = out * xs[i];
+        i += 1;
+    }
+    chu out;
+}
+
+kar math__sumprod(xs: [ashari], ys: [ashari]) -> ashari {
+    ath mut n = len(xs);
+    agar len(ys) < n {
+        n = len(ys);
+    }
+    ath mut out = 0.0;
+    ath mut i = 0;
+    yeli i < n {
+        out = out + xs[i] * ys[i];
+        i += 1;
+    }
+    chu out;
+}

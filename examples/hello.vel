@@ -1,0 +1,6 @@
+anaw io;
+
+kar main() -> adad {
+    io.chhaap("Hello, World!\n");
+    chu 0;
+}

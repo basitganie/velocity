@@ -1,0 +1,254 @@
+anaw io;
+anaw math;
+anaw lafz;
+
+bina Stack {
+    data: [adad; 8];
+    top: adad;
+}
+kar Stack(data: [adad; 8], top: adad)->Stack{
+    chu Stack{data: data, top: top};
+}
+kar stack_new() -> Stack {
+    ath data: [adad; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    ath s: Stack = Stack(data, 0);
+    chu s;
+}
+
+#kar stack_push(s: Stack, val: adad) -> Stack {
+    #    ath mut ns: Stack = s;
+    #ns.data[s.top] = val;
+    #ns.top = ns.top + 1;
+    #chu ns;
+    #}
+
+#kar stack_pop(s: Stack) -> (adad, Stack) {
+    #    ath mut ns: Stack = s;
+    #ns.top = s.top - 1;
+    #ath val = s.data[ns.top];
+    #chu (val, ns);
+    #}
+
+    #kar stack_peek(s: Stack) -> adad {
+        #chu s.data[s.top - 1];
+        #}
+
+kar stack_empty(s: Stack) -> bool {
+    chu s.top == 0;
+}
+
+# ----------------------------------------
+# Evaluate simple RPN (Reverse Polish Notation)
+# expression encoded as two arrays:
+#   tokens: values   ops: 0=num,1=+,2=-,3=*,4=/
+# Example: "3 4 + 2 *" -> tokens=[3,4,0,2,0] ops=[0,0,1,0,3]
+# ----------------------------------------
+kar rpn_add(a: adad, b: adad) -> adad { chu a + b; }
+kar rpn_sub(a: adad, b: adad) -> adad { chu a - b; }
+kar rpn_mul(a: adad, b: adad) -> adad { chu a * b; }
+kar rpn_div(a: adad, b: adad) -> adad {
+    agar b == 0 { chu 0; }
+    chu a / b;
+}
+
+# ----------------------------------------
+# Caesar cipher (shift each char by key)
+# Works on lowercase ASCII a-z only
+# ----------------------------------------
+kar caesar_char(c: adad, key: adad) -> adad {
+    agar c >= 97 {
+        agar c <= 122 {
+            chu 97 + ((c - 97 + key) % 26);
+        }
+    }
+    chu c;
+}
+
+# ----------------------------------------
+# Digital root (keep summing digits until 1 digit)
+# ----------------------------------------
+kar digit_sum(n: adad) -> adad {
+    ath mut s = 0;
+    ath mut x = math.abs(n);
+    yeli x > 0 {
+        s = s + (x % 10);
+        x = x / 10;
+    }
+    chu s;
+}
+
+kar digital_root(n: adad) -> adad {
+    ath mut x = math.abs(n);
+    yeli x >= 10 {
+        x = digit_sum(x);
+    }
+    chu x;
+}
+
+# ----------------------------------------
+# Collatz sequence -- count steps to reach 1
+# ----------------------------------------
+kar collatz_steps(n: adad) -> adad {
+    ath mut x = n;
+    ath mut steps = 0;
+    yeli x != 1 {
+        agar x % 2 == 0 {
+            x = x / 2;
+        } nate {
+            x = 3 * x + 1;
+        }
+        steps = steps + 1;
+    }
+    chu steps;
+}
+
+# ----------------------------------------
+# Number to binary string 
+# ----------------------------------------
+# This binary function has a bug IDK what the issue is but it creates a seg-fault
+
+kar binary(n: adad) -> adad {
+    agar n == 0 {
+        chu 0;
+    }
+    ath mut bits: [adad; 8] = [0,0,0,0,0,0,0,0];# I even lowered the array from 32 to 8 it was [adad;32]
+    ath mut x = n;
+    ath mut len_bits = 0;
+    yeli x > 0 {
+        bits[len_bits] = x % 2;
+        x = x / 2;
+        len_bits = len_bits + 1;
+    }
+    # in reverse
+    ath mut i = len_bits - 1;
+    ath mut value: lafz = "";
+    yeli i >= 0 {
+        lafz.concat(value, lafz.from_adad(bits[i]));
+        i = i - 1;
+    }
+    ath bin_value: adad = value;
+    chu bin_value;
+}
+
+# -------- main----function-----------
+
+kar main() -> adad {
+    # --- Section 1: Lambda map/filter pipelines ---
+    io.chhaap("=== Functional Pipelines ===\n");
+    ath nums: [adad] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+    ath evens: [adad]   = filter(nums, |x| x % 2 == 0);
+    ath odds: [adad]    = filter(nums, |x| x % 2 != 0);
+    ath big: [adad]     = filter(nums, |x| x > 10);
+    ath squared: [adad] = map(nums, |x| x * x);
+    ath tripled: [adad] = map(evens, |x| x * 3);
+
+    io.chhaap("Evens  (%d): ", len(evens));
+    io.chhaap("[");
+    bar e in evens { io.chhaap("%d, ", e); }
+    io.chhaap("]");
+    io.chhaapLine();
+
+    io.chhaap("Odds   (%d): ", len(odds));
+    io.chhaap("[");
+    bar o in odds { io.chhaap("%d, ", o); }
+    io.chhaapLine("]");
+    io.chhaapLine();
+
+    io.chhaap(">10    (%d): ", len(big));
+    io.chhaap("[");
+    bar b in big { io.chhaap("%d, ", b); }
+    io.chhaap("]");
+    io.chhaapLine();
+
+    io.chhaap("x^2    (%d): ", len(squared));
+    io.chhaap("[");
+    bar s in squared { io.chhaap("%d, ", s); }
+    io.chhaap("]");
+    io.chhaapLine();
+
+    io.chhaap("even*3 (%d): ", len(tripled));
+    io.chhaap("[");
+    bar t in tripled { io.chhaap("%d, ", t); }
+    io.chhaap("]");
+    io.chhaapLine();
+
+    # Manual reduce: sum of squares
+    ath sq_arr: [adad] = map(nums, |x| x * x);
+    ath mut sum_sq = 0;
+    bar v in sq_arr { sum_sq = sum_sq + v; }
+    io.chhaap("Sum of squares 1..15 = %d\n\n", sum_sq);
+
+    # --- Section 2: Stack-based RPN ---
+    #io.chhaap("=== Stack (simulated) ===\n");
+    #ath mut stk: Stack = stack_new();
+    #stk = stack_push(stk, 10);
+    #stk = stack_push(stk, 20);
+    #stk = stack_push(stk, 30);
+    #io.chhaap("Stack top after pushing 10,20,30: %d\n", stack_peek(stk));
+
+    #ath pop_result: (adad, Stack) = stack_pop(stk);
+    #stk = pop_result.1;
+    #io.chhaap("Popped: %d, new top: %d\n\n", pop_result.0, stack_peek(stk));
+
+    # --- Section 3: Number theory ---
+    io.chhaap("=== Number Theory ===\n");
+    io.chhaap("%s | %s | %s | %s\n",
+        "n", "digital_root", "collatz_steps", "is_prime");
+    io.chhaap("----------------------------------------------\n");
+    ath arr: [adad] = [7, 12, 19, 27, 42, 97, 100, 256, 999, 1024];
+    bar n in arr{
+        ath dr  = digital_root(n);
+        ath cs  = collatz_steps(n);
+        ath isp = math.awwal_chu(n);
+        ath mut ps: lafz = "NO";
+        agar isp == 1 { ps = "YES"; }
+        io.chhaap("%d | %d | %d | %s\n", n, dr, cs, ps);
+    }
+
+    # --- Section 5: Multiplication table ---
+    io.chhaap("\n=== Multiplication Table (1-8) ===\n");
+    ath mut once: bool = poz;
+    bar i in 1..=10 {
+        agar once {
+            io.chhaap("Multiplication Table of %d\n\n", i);
+            once = apuz;
+            }
+        bar j in 1..=10 {
+            io.chhaap("%d * %d = %d\n", i, j, i * j);
+        }
+        io.chhaap("\n\n");
+        once = poz;
+    }
+
+    # --- Section 6: String operations ---
+    io.chhaap("\n=== String Operations ===\n");
+    ath words: [lafz] = ["Salaam", "Dost", "Velocity", "Kashmiri"];
+    bar w in words {
+        ath l = lafz.len(w);
+        io.chhaap("Word: %s | len=%d\n", w, l);
+    }
+
+    ath a: lafz = words[2];
+    ath b: lafz = " Language";
+    ath mut combined: lafz = lafz.concat(a, b);
+    io.chhaap("Concat: %s\n", combined);
+    io.chhaap("Slice [0,3]: %s\n", lafz.slice(combined, 0, 3));
+    io.chhaap("from_adad(2026): %s\n\n", lafz.from_adad(2026));
+    
+    
+    # Calling all the binary functions at last as it causes segmentation fault for some reason,
+    # I don't Think it's a code bug, I bet it's an issue in the underlying C code which velocity uses
+    # under the hood to allocate memory for arrays and stuff...
+
+    # --- Section 4: Binary representations ---
+    #io.chhaap("\n=== Binary Representations ===\n");
+    #ath mylist: [adad] = [0, 1, 5, 10, 42, 100, 255];
+    #bar m in mylist{
+    #    io.chhaap("%d -> %d\n", m, binary(m));
+    #}
+    # io.chhaap("binary value of: %d\n", binary(5));
+    chu 0;
+}
+
+

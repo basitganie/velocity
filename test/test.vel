@@ -1,0 +1,9 @@
+anaw io;
+
+kar main() -> adad {
+    ath f = io.open("test/test1.vel", 1);
+    #ath content = io.();
+    ath res = io.close(f);
+    io.chhaap("%d, %d\n", f, res);
+    chu 0;
+}

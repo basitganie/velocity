@@ -1,0 +1,76 @@
+anaw raylib;
+# =========================================
+# raylib.vel — Velocity stdlib wrapper
+# =========================================
+
+# ---- Window ----
+
+kar init_window(w: adad, h: adad, title: lafz) -> adad {
+    rl_init_window(w, h, title);
+    chu 0;
+}
+
+kar window_should_close() -> adad {
+    chu rl_window_should_close();
+}
+
+kar close_window() -> adad {
+    rl_close_window();
+    chu 0;
+}
+
+kar set_target_fps(fps: adad) -> adad {
+    rl_set_target_fps(fps);
+    chu 0;
+}
+
+# ---- Drawing ----
+
+kar begin_drawing() -> adad {
+    rl_begin_drawing();
+    chu 0;
+}
+
+kar end_drawing() -> adad {
+    rl_end_drawing();
+    chu 0;
+}
+
+kar clear_background(color: adad) -> adad {
+    rl_clear_background(color);
+    chu 0;
+}
+
+# ---- Shapes / Text ----
+
+kar draw_text(text: lafz, x: adad, y: adad, size: adad, color: adad) -> adad {
+    rl_draw_text(text, x, y, size, color);
+    chu 0;
+}
+
+kar draw_rectangle(x: adad, y: adad, w: adad, h: adad, color: adad) -> adad {
+    rl_draw_rectangle(x, y, w, h, color);
+    chu 0;
+}
+
+# ---- Colors (simple packed RGBA helpers) ----
+kar color_black() -> adad {
+    chu 0xFF000000;
+}
+
+kar color_white() -> adad {
+    chu 0xFFFFFFFF;
+}
+
+kar color_red() -> adad {
+    chu 0xFF0000FF;
+}
+
+kar color_green() -> adad {
+    chu 0xFF00FF00;
+}
+
+kar color_blue() -> adad {
+    chu 0xFFFF0000;
+}
+

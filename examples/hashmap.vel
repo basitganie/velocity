@@ -1,0 +1,53 @@
+# Hashmap implemented using struct arrays
+# Demonstrates: structs with arrays, append, dynamic arrays
+
+anaw io;
+
+bina Entry {
+    key:   adad;
+    value: lafz;
+    used:  bool;
+}
+kar Entry(k: adad, v: lafz, u: bool) -> Entry {
+    chu Entry{key: k, value: v, used: u};
+}
+kar make_table_entry(k: adad, v: lafz) -> Entry {
+    chu Entry { key: k, value: v, used: poz };
+}
+kar get(table: [Entry], k: adad) -> lafz {
+    bar t manz table{
+        agar t.key == k{ chu t.value; }
+    }
+    panic("no such key found!\n");
+}
+kar hashmap_demo() -> adad {
+    ath mut table: [Entry] = [];
+    ath e1: Entry = Entry(4, "Aiyaan", poz);
+    ath e2: Entry = Entry(5, "Musaib", poz);
+    ath e3: Entry = Entry(6, "Kifayet", poz);
+    
+    table.append(e1);
+    table.append(e2);
+    table.append(e3);
+
+    table.append(make_table_entry(1, "Shahid"));
+    table.append(make_table_entry(2, "Basit"));
+    table.append(make_table_entry(3, "Muneeb"));
+
+    io.chhaap("Table size: %d", len(table));
+    io.chhaapLine();
+
+    bar i manz table {
+        io.chhaap("key: %d value: %s", i.key, i.value);
+        io.chhaapLine();
+    }
+    io.chhaap("Enter a key: ");
+    ath num = io.input();
+    io.chhaap("The value of key: %d is %s\n", num, get(table, num));
+    chu 0;
+}
+
+kar main() -> adad {
+    hashmap_demo();
+    chu 0;
+}

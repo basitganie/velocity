@@ -1,0 +1,21 @@
+anaw cmath;
+
+kar cos(x: ashari) -> ashari{
+    chu cmath.acos(x);
+}
+
+kar cosh(x: ashari) -> ashari {
+    chu cmath.acosh(x);
+}
+
+kar sin(x: ashari) -> ashari {
+    chu cmath.asin(x);
+}
+
+kar pow(b: ashari, p: ashari) -> ashari {
+    chu cmath.pow(b, p);
+}
+
+kar sqrt(x: ashari) -> ashari {
+    chu cmath.sqrt(x);
+}

@@ -1,0 +1,264 @@
+# Velocity v2 Feature Demo
+# Shows: uadad, uadad8, bitwise, logical, hex/bin/oct literals,
+#        try/catch, panic, append, compound assign, struct with arrays,
+#        2D arrays, _ discard, elif chains
+
+anaw io;
+anaw lafz;
+
+# -- Struct with array and nested struct fields -------------------
+bina Color {
+    r: uadad8;
+    g: uadad8;
+    b: uadad8;
+}
+bina Point{
+    x: ashari;
+    y: ashari;
+}
+bina Pixel {
+    pos: Point;
+    color: Color;
+}
+
+# -- Basic arithmetic and new types ------------------------------
+kar demo_types() -> adad {
+    # Signed 64-bit
+    ath mut x: adad = 42;
+
+    # Unsigned 64-bit
+    ath mut count: uadad = 87677;
+
+    # Unsigned 8-bit (byte, 0..255)
+    ath mut byte_val: uadad8 = 200;
+
+    io.chhaap("adad: %d", x);
+    io.chhaapLine();
+    io.chhaap("uadad: %d", count);
+    io.chhaapLine();
+    count += 255; # adding insult to the injury.
+    io.chhaap("uadad: %d\n", count);
+    io.chhaap("uadad8: %d", byte_val);
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- Hex, binary, octal literals ---------------------------------
+kar demo_literals() -> adad {
+    ath hex_val = 0xFF;       # 255
+    ath bin_val = 0b11001010; # 202
+    ath oct_val = 0o777;      # 511
+
+    io.chhaap("hex 0xFF = %d", hex_val);
+    io.chhaapLine();
+    io.chhaap("bin 0b11001010 = %d", bin_val);
+    io.chhaapLine();
+    io.chhaap("oct 0o777 = %d", oct_val);
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- Bitwise operations -------------------------------------------
+kar demo_bitwise() -> adad {
+    ath a = 0b1010;   # 10
+    ath b = 0b1100;   # 12
+
+    ath band_res = a & b;    # 8
+    ath bor_res  = a | b;    # 14
+    ath bxor_res = a ^ b;    # 6
+    ath bnot_res = ~a;       # bitwise NOT
+    ath shl_res  = a << 2;   # 40
+    ath shr_res  = a >> 1;   # 5
+
+    io.chhaap("10 & 12 = %d", band_res);
+    io.chhaapLine();
+    io.chhaap("10 | 12 = %d", bor_res);
+    io.chhaapLine();
+    io.chhaap("10 ^ 12 = %d", bxor_res);
+    io.chhaapLine();
+    io.chhaap("10 << 2 = %d", shl_res);
+    io.chhaapLine();
+    io.chhaap("10 >> 1 = %d", shr_res);
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- Logical operators --------------------------------------------
+kar demo_logical() -> adad {
+    ath a = poz;
+    ath b = apuz;
+
+    ath and_res = a && b;   # false  (wa also works)
+    ath or_res  = a || b;   # true   (ya also works)
+    ath not_res = !a;        # false  (na also works)
+
+    io.chhaap("poz && apuz = %b", and_res);
+    io.chhaapLine();
+    io.chhaap("poz || apuz = %b", or_res);
+    io.chhaapLine();
+    io.chhaap("!poz = %b", not_res);
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- Compound assignment ------------------------------------------
+kar demo_compound() -> adad {
+    ath mut x = 10;
+    x += 5;   io.chhaap("10 += 5 -> %d", x); io.chhaapLine();
+    x -= 3;   io.chhaap("-= 3 -> %d", x);    io.chhaapLine();
+    x *= 2;   io.chhaap("*= 2 -> %d", x);    io.chhaapLine();
+    x /= 4;   io.chhaap("/= 4 -> %d", x);    io.chhaapLine();
+    chu 0;
+}
+
+# -- Dynamic arrays with append() and correct len() --------------
+kar demo_dynamic_array() -> adad {
+    ath mut arr: [adad] = [];
+
+    arr.append(10);
+    arr.append(20);
+    arr.append(30);
+
+    io.chhaap("arr length after 3 appends: %d", len(arr));
+    io.chhaapLine();
+
+    io.chhaap("arr[0] = %d", arr[0]);
+    io.chhaapLine();
+    io.chhaap("arr[1] = %d", arr[1]);
+    io.chhaapLine();
+    io.chhaap("arr[2] = %d", arr[2]);
+    io.chhaapLine();
+
+    # Fixed-size array
+    ath mut fixed: [adad; 4] = [1, 2, 3, 4];
+    fixed[2] = 99;
+    io.chhaap("fixed[2] after assign: %d", fixed[2]);
+    io.chhaapLine();
+    io.chhaap("len(fixed) = %d", len(fixed));
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- Struct with array field and nested struct --------------------
+kar demo_struct_with_arrays() -> adad {
+    ath p = Pixel {
+        pos: Point{x: 100, y: 200},
+        color: Color { r: 255, g: 128, b: 0 }
+    };
+
+    io.chhaap("Pixel pos: (%f, %f)", p.pos.x, p.pos.y);
+    io.chhaapLine();
+    io.chhaap("Color RGB: (%d, %d, %d)", p.color.r, p.color.g, p.color.b);
+    io.chhaapLine();
+
+    chu 0;
+}
+
+# -- try/catch and panic ------------------------------------------
+kar safe_divide(a: adad, b: adad) -> adad {
+    agar b == 0 {
+        panic("Division by zero!\n");
+    }
+    chu a / b;
+}
+
+kar demo_error_handling() -> adad {
+    ath result = safe_divide(10, 2);
+    io.chhaap("10 / 2 = %d", result);
+    io.chhaapLine();
+
+    # try/catch block
+    koshish {
+        ath x = safe_divide(5, 0);  # would panic
+        io.chhaap("Should not reach here: %d", x);
+    } ratt (e) {
+        io.chhaap("Caught error: %s", e);
+        io.chhaapLine();
+    }
+
+    chu 0;
+}
+
+# -- _ discard ---------------------------------------------------
+kar demo_discard() -> adad {
+    # Use _ to discard a result
+    _ = "help";
+    io.chhaap("_ discard works\n");
+    chu 0;
+}
+
+# -- else-if chains ----------------------------------------------
+kar classify(n: adad) -> adad {
+    agar n < 0 {
+        io.chhaap("negative");
+    } nate agar n == 0 {
+        io.chhaap("zero");
+    } nate agar n < 10 {
+        io.chhaap("small");
+    } nate agar n < 100 {
+        io.chhaap("medium");
+    } nate {
+        io.chhaap("large");
+    }
+    io.chhaapLine();
+    chu 0;
+}
+
+# -- Main ---------------------------------------------------------
+kar main() -> adad {
+    io.chhaap("=== Velocity v2 Feature Demo ===");
+    io.chhaapLine();
+
+    io.chhaap("--- Types ---");
+    io.chhaapLine();
+    demo_types();
+
+    io.chhaap("--- Literals ---");
+    io.chhaapLine();
+    demo_literals();
+
+    io.chhaap("--- Bitwise ---");
+    io.chhaapLine();
+    demo_bitwise();
+
+    io.chhaap("--- Logical ---");
+    io.chhaapLine();
+    demo_logical();
+
+    io.chhaap("--- Compound Assignment ---");
+    io.chhaapLine();
+    demo_compound();
+
+    io.chhaap("--- Dynamic Array + append ---");
+    io.chhaapLine();
+    demo_dynamic_array();
+
+    io.chhaap("--- Struct with Arrays ---");
+    io.chhaapLine();
+    demo_struct_with_arrays();
+
+    io.chhaap("--- Error Handling ---");
+    io.chhaapLine();
+    demo_error_handling();
+
+    io.chhaap("--- Discard ---");
+    io.chhaapLine();
+    demo_discard();
+
+    io.chhaap("--- Classify ---");
+    io.chhaapLine();
+    classify(-5);
+    classify(0);
+    classify(7);
+    classify(42);
+    classify(999);
+
+    io.chhaap("=== Done ===");
+    io.chhaapLine();
+    chu 0;
+}

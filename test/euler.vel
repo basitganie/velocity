@@ -1,0 +1,29 @@
+anaw io;
+kar pow(b: adad, p: ashari)-> adad{
+    agar p == 0{chu 1;}
+    agar p == 1{chu b;}
+    ath mut res = 1;
+    bar i manz 1..=p{
+        res *= b;
+    }
+    chu res;
+}
+kar factorial(n: adad) -> adad{
+    agar n <= 1{ chu 1;}
+    chu n*factorial(n-1);
+}
+kar main() -> adad{
+    ath mut e: ashari = 0.0;
+    bar i manz 0..=20{
+        #ath p: ashari = pow(1, i);
+        ath f: ashari = factorial(i);  # factorial of numbers above 20 is negative... why?
+        #e += (1/f);   # it doesn't work... the '+=' works normally idk what's happening...maybe it's because of floating numbers... 
+        e = e+(1/f);   # this works ....
+        io.chhaap("%d: fact: %f\te: %f\n", i, f, e);
+    }
+    #bar i manz 0..=10{
+    #    io.chhaap("Power of 2^%d: %d\nFactorial of %d: %d\n", i, pow(2, i), i, factorial(i));
+    #}
+    io.chhaap("e: %f\n", e); # e = 2.718281 ... why is adad which is 64-bit floating point precision only holds upto 6 decimal places...
+    chu 0;
+}

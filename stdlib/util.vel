@@ -1,0 +1,61 @@
+# Velocity Standard Library - Util Module
+# General utility functions
+
+kar util__is_digit(c: adad) -> bool {
+    chu c >= 48 wa c <= 57;
+}
+
+kar util__is_alpha(c: adad) -> bool {
+    chu (c >= 65 wa c <= 90) ya (c >= 97 wa c <= 122);
+}
+
+kar util__is_space(c: adad) -> bool {
+    chu c == 32 ya c == 9 ya c == 10 ya c == 13;
+}
+
+kar util__to_upper(c: adad) -> adad {
+    agar c >= 97 wa c <= 122 {
+        chu c - 32;
+    }
+    chu c;
+}
+
+kar util__to_lower(c: adad) -> adad {
+    agar c >= 65 wa c <= 90 {
+        chu c + 32;
+    }
+    chu c;
+}
+
+kar util__abs_int(n: adad) -> adad {
+    agar n < 0 {
+        chu 0 - n;
+    }
+    chu n;
+}
+
+kar util__sign(n: adad) -> adad {
+    agar n > 0 {
+        chu 1;
+    }
+    agar n < 0 {
+        chu 0 - 1;
+    }
+    chu 0;
+}
+
+kar util__min(a: adad, b: adad) -> adad {
+    agar a < b { chu a; }
+    chu b;
+}
+
+kar util__max(a: adad, b: adad) -> adad {
+    agar a > b { chu a; }
+    chu b;
+}
+
+kar util__clamp(x: adad, lo: adad, hi: adad) -> adad {
+    agar x < lo { chu lo; }
+    agar x > hi { chu hi; }
+    chu x;
+}
